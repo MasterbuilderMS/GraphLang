@@ -1,0 +1,27 @@
+
+<program> ::= <statement>+
+
+<statement> ::= 
+      <expression_stmt> "\n" # expression e.g. y=x
+	| <ns_stmt> "\n" # namespace
+    | <fn_stmt> "\n" # function
+    | <macro_stmt> "\n" # macro - beta
+    | <for_stmt> "\n" # list comprehension
+    | <if_stmt> "\n" # if
+
+# optional space
+<opt_space> ::= " "?
+<naming> ::= ([A-Z] | [a-z]) ([A-Z] | [a-z] | [0-9])*
+
+<expression_stmt> ::= <naming> <opt_space> "=" <opt_space> [0-9]+
+
+<ns_stmt> ::= "ns " <naming> " {\n" (<statement>) "\n"+ "}"
+
+<fn_stmt> ::= "fn " <naming> " {\n" (<statement>) "\n"+ "}"
+
+<macro_stmt> ::= "macro " <naming> " {\n" ((<statement>) "\n")+ "}"
+
+<for_stmt> ::= (<naming>+) " for " (<naming> " = " "[" (<naming> | ([0-9]+)+) "]") "{\n" (<statement> "\n")+ "}"
+
+<if_stmt> ::= "if " (<naming> "=" [0-9]) "{\n" (<statement> "\n")+ "}"
+
