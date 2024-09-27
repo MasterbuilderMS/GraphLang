@@ -11,7 +11,8 @@ class DesPy:
         self.token_feed = self.tokens()
         self.returned_token = None
         self.stack = []
-        self.vars = {}
+        # allowed by desmos
+        self.vars = {"x": "x", "y": "y", "X": "X", "Y": "Y"}
         self.precedence = {}
         self.output = {
             "version": 11,
@@ -80,6 +81,12 @@ class DesPy:
     def stack_push(self, token):
         return self.stack.append(token)
 
+    def subscriptifise(self, text):
+        if len(text) > 1:
+            text = text[0] + "_{" + text[1:] + "}"
+
+        return text
+
     def run(self):
 
         try:
@@ -100,10 +107,12 @@ class DesPy:
         # repeat until end of program
         while token is not None:
             self.return_token(token)
+            # if there is a statement
             if not self.parse_statement():
                 self.raise_error("Expected: statement")
             token = self.next_token()
 
+        # copy output json to clipboard
         self.output
         data = json.dumps(self.output)
         pyperclip.copy(data)
@@ -119,13 +128,14 @@ class DesPy:
 
     def parse_number(self):
         token = self.next_token()
-        if token[0] != "number":
+        if token[0] not in ["number", "identifier"]:
             self.return_token(token)
             return False
 
         if token[0] == "identifier":
-            if token[1] not in self.vars:
-                self.raise_error(f"Syntax Error: Unknown variable {token[1]}")
+            if (token[1] not in self.vars.keys()) and (token[1] not in ["x", "y", "X", "Y"]):
+                self.raise_error(
+                    f"Syntax Error: Unknown variable {token[1]}")
             else:
                 self.stack_push(self.vars[token[1]])
         else:
@@ -135,30 +145,37 @@ class DesPy:
     def parse_expression_statement(self):
         expression = {}  # expression as desmos json
         token = self.next_token()
+        identifier = None
+        operator = None
+        value = None
+        self.output["expressions"]["list"].append(
+            {"type": "expression", "id": self.expression_id, "color": "#c74440", "latex": None})
+
         if token[0] != "identifier":
             self.return_token(token)
             return False
+
         identifier = token[1]
-        self.output["expressions"]["list"].append(
-            {"type": "expression", "id": self.expression_id, "color": "#c74440", "latex": None})
         self.expression_id += 1
         token = self.next_token()
         if token[0] != "operator":
             self.raise_error("Expected: operator")
-        self.output["expressions"]["list"][next((index for (index, d) in enumerate(
-            self.output["expressions"]["list"]) if d["id"] == self.expression_id-1), None)]["latex"] = identifier
-        self.output["expressions"]["list"][next((index for (index, d) in enumerate(
-            self.output["expressions"]["list"]) if d["id"] == self.expression_id-1), None)]["latex"] += token[1]
+
+        identifier = self.subscriptifise(identifier)
+
+        operator = token[1]
         if not self.parse_number():
             self.raise_error("Expected: expression")
         self.vars[identifier] = self.stack_pop()
+        value = str(self.vars[identifier])
         self.output["expressions"]["list"][next((index for (index, d) in enumerate(
-            self.output["expressions"]["list"]) if d["id"] == self.expression_id-1), None)]["latex"] += str(self.vars[identifier])
+            self.output["expressions"]["list"]) if d["id"] == self.expression_id-1), None)]["latex"] = identifier + operator + value
         return True
 
 
 if __name__ == "__main__":
     with open(sys.argv[1], "rt") as f:
+        # with open(r".\src\parser\main.despy", "rt") as f:
         code = f.read()
         program = DesPy(code)
         program.run()
