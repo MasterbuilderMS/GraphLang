@@ -113,7 +113,6 @@ class DesPy:
             token = self.next_token()
 
         # copy output json to clipboard
-        self.output
         data = json.dumps(self.output)
         pyperclip.copy(data)
         print("Copied: ", data)
