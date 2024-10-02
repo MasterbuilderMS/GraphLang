@@ -1,7 +1,10 @@
 import re
 import json
 import pyperclip
-import copy
+from Utils import colors
+import sys
+import time
+import os
 
 
 class GraphLangInterpreter:
@@ -10,6 +13,7 @@ class GraphLangInterpreter:
         self.tokens: list = []
         self.stack: list = []  # stack for loading operations
         self.precedence: dict = {}  # precedence of operations
+        self.vars: dict = {}  # dict of variables
         self.line_nr: int = 0
         self.output: dict = {}
         self.expression_id: int = 0
@@ -19,14 +23,14 @@ class GraphLangInterpreter:
             ("literal", r"\d+"),
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;]"),
             ("operator", r"\+|-|\*|/|->|>|<|>=|<=|!=|="),
-            ("skip", r"[ \t\n]+"),
+            ("skip", r"[ \t]+"),
             ("comment", r"#.*"),
-            # ("line", r"\n")
+            ("line", r"\n")
         ]
         self.lex()
         self.current_token: tuple = self.tokens[0]
         self.position = 0
-        print(f"Tokens: {self.tokens}")
+        self.constants = ["X", "Y", "x", "y"]
 
     # lexer
 
@@ -40,7 +44,7 @@ class GraphLangInterpreter:
             if token_type == "literal":
                 value = int(value)
                 self.tokens.append((token_type, value))
-            elif token_type == "skip":
+            elif token_type in ["skip", "comment"]:
                 pass
             else:
                 self.tokens.append((token_type, value))
@@ -65,29 +69,69 @@ class GraphLangInterpreter:
         try:
             self.current_token = self.tokens[self.position + 1]
             self.position += 1
-            print(self.current_token)
+            # print(self.current_token)
         except IndexError:
             self.current_token = None
+
+    def stack_pop(self):
+        return self.stack.pop()
+
+    def stack_push(self, value):
+        return self.stack.append(value)
 
     # ====== Parsing statements ========
     # functions for checking that each token conforms with the grammar
     # each function returns true or false
 
     def parse_program(self):
+        # print(self.current_token)
         self.position = 0
         if not self.parse_statement():
             self.raise_error("Expected statement")
         # until end of program
         while self.current_token is not None:
-            if (not self.parse_statement()) and (self.current_token[0] != "line"):
-                self.raise_error("aExpected statement")
+            if self.current_token[0] != "line":
+                if not self.parse_statement():
+                    self.raise_error("Expected statement")
+            elif self.current_token[0] == "line":
+                try:
+                    self.parse_statement()
+                except TypeError:
+                    pass
+
+        self.output = '''{
+  "version": 11,
+  "randomSeed": "038ada9396ae4919ad0383b8fe134eb0",
+  "graph": {
+    "viewport": {
+      "xmin": -10,
+      "ymin": -7.595766129032258,
+      "xmax": 10,
+      "ymax": 7.595766129032258
+    }
+  },
+  "expressions": {
+    "list": [
+      {
+        "type": "expression",
+        "id": "1",
+        "color": "#c74440"
+      }
+    ]
+  },
+  "includeFunctionParametersInRandomSeed": true
+}'''
 
         data = json.dumps(self.output)
         pyperclip.copy(data)
         print("Copied: ", data)
+        print(self.vars)
 
     def parse_statement(self):
-        print(f"current token at start of statement: {self.current_token}")
+        if self.current_token == None:
+            return True
+        while self.current_token[0] == "line":
+            self.next_token()
         if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
             self.raise_error("Expected expression")
         self.next_token()
@@ -116,33 +160,74 @@ class GraphLangInterpreter:
         return False
 
     def parse_expression(self):
+        if self.current_token[0] == "identifier":
+            identifier = self.current_token[1]
         if not self.parse_value():
             return False
-        if self.parse_operator():
-            self.parse_expression()
+
+        try:
+            if self.current_token[1] == "=":
+                self.vars[identifier] = None
+                self.parse_expression()
+            if self.parse_operator():
+                self.parse_expression()
+            if self.current_token[0] == "line":
+                return True
+        except TypeError:
+            pass
+
         return True
 
     def parse_value(self):
         if self.current_token[0] not in ["identifier", "literal"]:
             return False
+
+        if self.current_token[0] == "identifier":
+            try:
+                if (self.current_token[1] not in (list(self.vars.keys()) + self.constants)) and self.tokens[self.position + 1][1] != "=":
+                    self.raise_error(f"Syntax Error: Unknown variable {self.current_token[1]}")  # nopep8
+                else:
+                    self.vars[self.current_token[1]] = self.current_token[1]
+                    self.stack_push(self.vars[self.current_token[1]])
+            except IndexError:
+                pass
+        else:
+            self.stack_push(self.current_token[1])
         self.next_token()
         return True
 
     def parse_operator(self):
         if self.current_token[1] not in ["=", "-", "+", "/", "*"]:
             return False
+
+        self.stack_push(self.current_token[0])
         self.next_token()
         return True
 
 
-a = GraphLangInterpreter('''
-    ns Rectangle{
-                         x = 1   
-                        }
+if __name__ == "__main__":
+    os.system("cls")
+    try:
+        print(colors.BLUE + "Looking for - " + sys.argv[1] + colors.END)
+        time.sleep(0.1)
+    except IndexError:
+        print(colors.RED + '''Failed to start compilation. Are you sure you have passed in the file?
+Hint: try ''' + colors.END + colors.GREEN + "py interpreter.py foo.graphlang" + colors.END
+              )
+        exit()
+    time.sleep(0.05)
+    try:
+        with open(sys.argv[1], "rt") as f:
+            code = f.read()
+            os.system("cls")
+            for i in range(30):
+                os.system("cls")
+                print(colors.GREEN + "Compiling" + (" ."*i) + colors.END)
+                time.sleep(0.005)
 
-
-
-
-        ''')
-
-a.run()
+            _ = GraphLangInterpreter(code)
+            _.run()
+    except FileNotFoundError:
+        print(colors.RED + '''Failed to start compilation. Are you sure the file exists?''' + colors.END
+              )
+        exit()
