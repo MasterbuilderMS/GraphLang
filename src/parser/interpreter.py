@@ -132,7 +132,7 @@ class GraphLangInterpreter:
             return True
         while self.current_token[0] == "line":
             self.next_token()
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_assignment():
             self.raise_error("Expected expression")
         self.next_token()
         return True
@@ -159,22 +159,29 @@ class GraphLangInterpreter:
     def parse_function(self):
         return False
 
-    def parse_expression(self):
-        if self.current_token[0] == "identifier":
-            identifier = self.current_token[1]
+    def parse_assignment(self):  # e.g. y = x
+        if self.current_token[0] != "identifier":
+            self.raise_error("Expected identifier")
+        self.next_token()
+        try:
+            if self.current_token[1] != "=":
+                self.raise_error("Expected Error")
+            self.next_token()
+            if not self.parse_expression():
+                pass
+        except TypeError:
+            pass
+
+        return True
+
+    def parse_expression(self):  # x + 1
         if not self.parse_value():
             return False
 
-        try:
-            if self.current_token[1] == "=":
-                self.vars[identifier] = None
-                self.parse_expression()
-            if self.parse_operator():
-                self.parse_expression()
-            if self.current_token[0] == "line":
-                return True
-        except TypeError:
-            pass
+        if self.parse_operator():
+            self.parse_expression()
+        if self.current_token[0] == "line":
+            return True
 
         return True
 
@@ -197,7 +204,7 @@ class GraphLangInterpreter:
         return True
 
     def parse_operator(self):
-        if self.current_token[1] not in ["=", "-", "+", "/", "*"]:
+        if self.current_token[1] not in ["->", "-", "+", "/", "*"]:
             return False
 
         self.stack_push(self.current_token[0])
