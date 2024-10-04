@@ -5,6 +5,7 @@ from Utils import colors
 import sys
 import time
 import os
+import copy
 
 
 class GraphLangInterpreter:
@@ -31,7 +32,8 @@ class GraphLangInterpreter:
         self.current_token: tuple = self.tokens[0]
         self.position = 0
         self.constants = ["X", "Y", "x", "y"]
-
+        self.expression_template = None
+        self.location = 0
     # lexer
 
     def lex(self):
@@ -84,6 +86,28 @@ class GraphLangInterpreter:
     # each function returns true or false
 
     def parse_program(self):
+        self.expression_template = {
+            "type": "expression",
+            "id": 1,
+            "color": "#c74440",
+            "latex": ""
+        }
+        self.output = {
+            "version": 11,
+            "randomSeed": "038ada9396ae4919ad0383b8fe134eb0",
+            "graph": {
+                "viewport": {
+                    "xmin": -10,
+                    "ymin": -7.595766129032258,
+                    "xmax": 10,
+                    "ymax": 7.595766129032258
+                }
+            },
+            "expressions": {
+                "list": []
+            },
+            "includeFunctionParametersInRandomSeed": True
+        }
         # print(self.current_token)
         self.position = 0
         if not self.parse_statement():
@@ -98,29 +122,6 @@ class GraphLangInterpreter:
                     self.parse_statement()
                 except TypeError:
                     pass
-
-        self.output = '''{
-  "version": 11,
-  "randomSeed": "038ada9396ae4919ad0383b8fe134eb0",
-  "graph": {
-    "viewport": {
-      "xmin": -10,
-      "ymin": -7.595766129032258,
-      "xmax": 10,
-      "ymax": 7.595766129032258
-    }
-  },
-  "expressions": {
-    "list": [
-      {
-        "type": "expression",
-        "id": "1",
-        "color": "#c74440"
-      }
-    ]
-  },
-  "includeFunctionParametersInRandomSeed": true
-}'''
 
         data = json.dumps(self.output)
         pyperclip.copy(data)
@@ -162,10 +163,14 @@ class GraphLangInterpreter:
     def parse_assignment(self):  # e.g. y = x
         if self.current_token[0] != "identifier":
             self.raise_error("Expected identifier")
+        self.location: list = self.output["expressions"]["list"]
+        self.location.append(copy.deepcopy(self.expression_template))
+        self.location[-1]["latex"] += self.current_token[1]
         self.next_token()
         try:
             if self.current_token[1] != "=":
                 self.raise_error("Expected Error")
+            self.location[-1]["latex"] += self.current_token[1]
             self.next_token()
             if not self.parse_expression():
                 pass
@@ -177,7 +182,9 @@ class GraphLangInterpreter:
     def parse_expression(self):  # x + 1
         if not self.parse_value():
             return False
-
+        if self.current_token[0] == "line":
+            return True
+        self.location[-1]["latex"] += self.current_token[1]
         if self.parse_operator():
             self.parse_expression()
         if self.current_token[0] == "line":
@@ -189,25 +196,14 @@ class GraphLangInterpreter:
         if self.current_token[0] not in ["identifier", "literal"]:
             return False
 
-        if self.current_token[0] == "identifier":
-            try:
-                if (self.current_token[1] not in (list(self.vars.keys()) + self.constants)) and self.tokens[self.position + 1][1] != "=":
-                    self.raise_error(f"Syntax Error: Unknown variable {self.current_token[1]}")  # nopep8
-                else:
-                    self.vars[self.current_token[1]] = self.current_token[1]
-                    self.stack_push(self.vars[self.current_token[1]])
-            except IndexError:
-                pass
-        else:
             self.stack_push(self.current_token[1])
+        self.location[-1]["latex"] += str(self.current_token[1])
         self.next_token()
         return True
 
     def parse_operator(self):
         if self.current_token[1] not in ["->", "-", "+", "/", "*"]:
             return False
-
-        self.stack_push(self.current_token[0])
         self.next_token()
         return True
 

@@ -1,3 +1,5 @@
 # hello
-hello = 1 + 1
-hello = b
+y = x
+a = 1
+b = 1
+y = a + b
