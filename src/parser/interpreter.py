@@ -133,7 +133,9 @@ class GraphLangInterpreter:
             return True
         while self.current_token[0] == "line":
             self.next_token()
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_assignment():
+        self.location: list = self.output["expressions"]["list"]
+        self.location.append(copy.deepcopy(self.expression_template))
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
             self.raise_error("Expected expression")
         self.next_token()
         return True
@@ -179,31 +181,50 @@ class GraphLangInterpreter:
 
         return True
 
-    def parse_expression(self):  # x + 1
+    def parse_expression(self):
+        if self.current_token == None:
+            return True
+        # break if we have reached the end of the line
         if not self.parse_value():
             return False
-        if self.current_token[0] == "line":
-            return True
-        self.location[-1]["latex"] += self.current_token[1]
         if self.parse_operator():
             self.parse_expression()
-        if self.current_token[0] == "line":
+        if self.current_token != None:
+            if self.current_token[0] == "line":
+                return True
+        else:
             return True
 
-        return True
+    # def parse_expression(self):  # x + 1
+     #   if not self.parse_value():
+      #      return False
+       # if self.current_token[0] == "line":
+        #    return True
+        # self.location[-1]["latex"] += self.current_token[1]
+        # if self.parse_operator():
+         #   self.parse_expression()
+        # if self.current_token[0] == "line":
+          #  return True
 
-    def parse_value(self):
-        if self.current_token[0] not in ["identifier", "literal"]:
-            return False
+        # return True
 
-            self.stack_push(self.current_token[1])
+    def parse_value(self):  # 1232, or x, y or hello
+        if self.current_token != None:
+            if self.current_token[0] not in ["identifier", "literal"]:
+                return False
+        else:
+            return True
         self.location[-1]["latex"] += str(self.current_token[1])
         self.next_token()
         return True
 
     def parse_operator(self):
-        if self.current_token[1] not in ["->", "-", "+", "/", "*"]:
+        if self.current_token != None:
+            if self.current_token[1] not in ["=", "->", "-", "+", "/", "*"]:
+                return False
+        else:
             return False
+        self.location[-1]["latex"] += str(self.current_token[1])
         self.next_token()
         return True
 
@@ -215,7 +236,7 @@ if __name__ == "__main__":
         time.sleep(0.1)
     except IndexError:
         print(colors.RED + '''Failed to start compilation. Are you sure you have passed in the file?
-Hint: try ''' + colors.END + colors.GREEN + "py interpreter.py foo.graphlang" + colors.END
+Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" + colors.END
               )
         exit()
     time.sleep(0.05)
