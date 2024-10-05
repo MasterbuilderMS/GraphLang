@@ -162,25 +162,6 @@ class GraphLangInterpreter:
     def parse_function(self):
         return False
 
-    def parse_assignment(self):  # e.g. y = x
-        if self.current_token[0] != "identifier":
-            self.raise_error("Expected identifier")
-        self.location: list = self.output["expressions"]["list"]
-        self.location.append(copy.deepcopy(self.expression_template))
-        self.location[-1]["latex"] += self.current_token[1]
-        self.next_token()
-        try:
-            if self.current_token[1] != "=":
-                self.raise_error("Expected Error")
-            self.location[-1]["latex"] += self.current_token[1]
-            self.next_token()
-            if not self.parse_expression():
-                pass
-        except TypeError:
-            pass
-
-        return True
-
     def parse_expression(self):  # x + 1
         if not self.parse_value():
             return False
