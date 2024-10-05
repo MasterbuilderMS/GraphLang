@@ -192,19 +192,6 @@ class GraphLangInterpreter:
         else:
             return True
 
-    # def parse_expression(self):  # x + 1
-     #   if not self.parse_value():
-      #      return False
-       # if self.current_token[0] == "line":
-        #    return True
-        # self.location[-1]["latex"] += self.current_token[1]
-        # if self.parse_operator():
-         #   self.parse_expression()
-        # if self.current_token[0] == "line":
-          #  return True
-
-        # return True
-
     def parse_value(self):  # 1232, or x, y or hello
         if self.current_token != None:
             if self.current_token[0] not in ["identifier", "literal"]:
