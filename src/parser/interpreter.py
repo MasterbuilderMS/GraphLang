@@ -81,9 +81,14 @@ class GraphLangInterpreter:
     def stack_push(self, value):
         return self.stack.append(value)
 
-    # ====== Parsing statements ========
-    # functions for checking that each token conforms with the grammar
-    # each function returns true or false
+    def subscriptify(self, text):
+        if len(list(text)) == 1:
+            return text
+        else:
+            return f"{text[0]}_{{{text[1:]}}}"
+            # ====== Parsing statements ========
+            # functions for checking that each token conforms with the grammar
+            # each function returns true or false
 
     def parse_program(self):
         self.expression_template = {
@@ -110,16 +115,16 @@ class GraphLangInterpreter:
         }
         # print(self.current_token)
         self.position = 0
-        if not self.parse_statement():
+        if not self.parse_statement(False):
             self.raise_error("Expected statement")
         # until end of program
         while self.current_token is not None:
             if self.current_token[0] != "line":
-                if not self.parse_statement():
+                if not self.parse_statement(False):
                     self.raise_error("Expected statement")
             elif self.current_token[0] == "line":
                 try:
-                    self.parse_statement()
+                    self.parse_statement(False)
                 except TypeError:
                     pass
 
@@ -128,13 +133,15 @@ class GraphLangInterpreter:
         print("Copied: ", data)
         print(self.vars)
 
-    def parse_statement(self):
+    # substatement checks if the statement is inside a function
+    def parse_statement(self, is_substatement):
         if self.current_token == None:
             return True
         while self.current_token[0] == "line":
             self.next_token()
-        self.location: list = self.output["expressions"]["list"]
-        self.location.append(copy.deepcopy(self.expression_template))
+        if not is_substatement:
+            self.location: list = self.output["expressions"]["list"]
+            self.location.append(copy.deepcopy(self.expression_template))
         if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
             self.raise_error("Expected expression")
         self.next_token()
@@ -147,20 +154,58 @@ class GraphLangInterpreter:
 
         if self.current_token[0] != "identifier":
             return False
+
         self.next_token()
         if self.current_token[1] != "{":
             return False
         self.next_token()
         try:
             while self.current_token[1] != "}":
-                if not self.parse_statement():
+                if not self.parse_statement(False):
                     self.raise_error("Expected Statement")
         except TypeError:
             pass
         return True
 
     def parse_function(self):
-        return False
+        if self.current_token[1] != "fn":
+            return False
+        self.next_token()
+        if self.current_token[0] != "identifier":
+            return False
+        self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
+        self.location[-1]["latex"] += r"\left("
+        self.next_token()
+        if self.current_token[1] != "(":
+            return False
+        self.next_token()
+        while self.current_token[1] != ")":
+            if self.current_token[0] != "identifier":
+                return False
+            self.location[-1]["latex"] += self.subscriptify(
+                self.current_token[1])
+            self.next_token()
+            if self.current_token[1] == ")":
+                self.location[-1]["latex"] += r"\right)"
+                self.next_token()
+                break
+            if self.current_token[1] != ",":
+                return False
+            self.location[-1]["latex"] += ","
+            self.next_token()
+        if self.current_token[1] != "{":
+            return False
+
+        self.location[-1]["latex"] += "="
+
+        self.next_token()
+        try:
+            while self.current_token[1] != "}":
+                if not self.parse_statement(True):
+                    self.raise_error("Expected Statement")
+        except TypeError:
+            pass
+        return True
 
     def parse_expression(self):  # x + 1
         if not self.parse_value():

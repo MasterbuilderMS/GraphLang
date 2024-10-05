@@ -3,3 +3,6 @@ y = x
 a = 1
 b = 1
 y = a + b + 5
+fn f (a,b) {
+    a + b
+}
