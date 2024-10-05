@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import re
 import json
 import pyperclip
@@ -18,6 +20,7 @@ class GraphLangInterpreter:
         self.line_nr: int = 0
         self.output: dict = {}
         self.expression_id: int = 0
+        self.folder_id: int = 0
         self.token_patterns: list[tuple[str, str]] = [
             ("keyword", r"fn|ns|if|for"),
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
@@ -95,8 +98,18 @@ class GraphLangInterpreter:
             "type": "expression",
             "id": 1,
             "color": "#c74440",
-            "latex": ""
+            "latex": "",
+            "lineStyle": "SOLID",
+            "lineOpacity": "1",
+            "lineWidth": "2.5",
+            "folderId": 0
         }
+        self.folder_template = {
+            "type": "folder",
+            "id": 1,
+            "name": ""
+        }
+
         self.output = {
             "version": 11,
             "randomSeed": "038ada9396ae4919ad0383b8fe134eb0",
@@ -115,33 +128,35 @@ class GraphLangInterpreter:
         }
         # print(self.current_token)
         self.position = 0
-        if not self.parse_statement(False):
+        if not self.parse_statement():
             self.raise_error("Expected statement")
         # until end of program
         while self.current_token is not None:
             if self.current_token[0] != "line":
-                if not self.parse_statement(False):
+                if not self.parse_statement():
                     self.raise_error("Expected statement")
             elif self.current_token[0] == "line":
                 try:
-                    self.parse_statement(False)
+                    self.parse_statement()
                 except TypeError:
                     pass
 
         data = json.dumps(self.output)
         pyperclip.copy(data)
         print("Copied: ", data)
-        print(self.vars)
 
     # substatement checks if the statement is inside a function
-    def parse_statement(self, is_substatement):
+
+    def parse_statement(self):
         if self.current_token == None:
             return True
         while self.current_token[0] == "line":
             self.next_token()
-        if not is_substatement:
-            self.location: list = self.output["expressions"]["list"]
-            self.location.append(copy.deepcopy(self.expression_template))
+        self.location: list = self.output["expressions"]["list"]
+        self.location.append(copy.deepcopy(self.expression_template))
+        self.expression_id += 1
+        self.location[-1]["id"] = self.expression_id
+        self.location[-1]["folderId"] = self.folder_id
         if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
             self.raise_error("Expected expression")
         self.next_token()
@@ -150,21 +165,24 @@ class GraphLangInterpreter:
     def parse_namespace(self):
         if self.current_token[1] != "ns":
             return False
+        self.location[-1] = copy.deepcopy(self.folder_template)
+        self.location[-1]["id"] = self.expression_id
         self.next_token()
-
         if self.current_token[0] != "identifier":
             return False
-
+        self.location[-1]["title"] = self.current_token[1]
+        self.folder_id = self.expression_id
         self.next_token()
         if self.current_token[1] != "{":
             return False
         self.next_token()
         try:
             while self.current_token[1] != "}":
-                if not self.parse_statement(False):
+                if not self.parse_statement():
                     self.raise_error("Expected Statement")
         except TypeError:
             pass
+        self.folder_id = 0
         return True
 
     def parse_function(self):
@@ -199,12 +217,15 @@ class GraphLangInterpreter:
         self.location[-1]["latex"] += "="
 
         self.next_token()
-        try:
-            while self.current_token[1] != "}":
-                if not self.parse_statement(True):
-                    self.raise_error("Expected Statement")
-        except TypeError:
-            pass
+        while self.current_token[0] in ["line", "comment"]:
+            self.next_token()
+        if not self.parse_expression():
+            self.raise_error("Expected Statement")
+        while self.current_token[0] in ["line", "comment"]:
+            self.next_token()
+        if self.current_token[1] != "}":
+            return False
+
         return True
 
     def parse_expression(self):  # x + 1
@@ -257,7 +278,7 @@ Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" +
             for i in range(30):
                 os.system("cls")
                 print(colors.GREEN + "Compiling" + (" ."*i) + colors.END)
-                time.sleep(0.005)
+                time.sleep(0.0001)
 
             _ = GraphLangInterpreter(code)
             _.run()

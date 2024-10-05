@@ -6,3 +6,7 @@ y = a + b + 5
 fn f (a,b) {
     a + b
 }
+ns Namespace {
+    x = 1
+    y = 1
+}
