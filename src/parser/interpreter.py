@@ -270,6 +270,7 @@ if __name__ == "__main__":
         print(colors.RED + '''Failed to start compilation. Are you sure you have passed in the file?
 Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" + colors.END
               )
+        sys.argv[1] = input("Input file path")
         exit()
     time.sleep(0.05)
     try:
