@@ -9,3 +9,7 @@ click browse my pc. Find the executable you downloaded and select it
 click always
 done! 
 the compiled desmos will be copied to clipboard!
+
+
+
+ps. Ignore that github says it is mostly HTML (?)
