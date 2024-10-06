@@ -34,9 +34,10 @@ class GraphLangInterpreter:
         self.lex()
         self.current_token: tuple = self.tokens[0]
         self.position = 0
-        self.constants = ["X", "Y", "x", "y"]
+        self.constants = ["X", "Y", "x", "y"]  # variables allowed by desmos
         self.expression_template = None
         self.location = 0
+        self.tokens.append(("line", "\n"))  # append an item to fix parsing
     # lexer
 
     def lex(self):
@@ -78,20 +79,14 @@ class GraphLangInterpreter:
         except IndexError:
             self.current_token = None
 
-    def stack_pop(self):
-        return self.stack.pop()
-
-    def stack_push(self, value):
-        return self.stack.append(value)
-
     def subscriptify(self, text):
         if len(list(text)) == 1:
             return text
         else:
             return f"{text[0]}_{{{text[1:]}}}"
-            # ====== Parsing statements ========
-            # functions for checking that each token conforms with the grammar
-            # each function returns true or false
+    # ====== Parsing statements ========
+    # functions for checking that each token conforms with the grammar
+    # each function returns true or false
 
     def parse_program(self):
         self.expression_template = {
@@ -171,15 +166,16 @@ class GraphLangInterpreter:
         if self.current_token[0] != "identifier":
             return False
         self.location[-1]["title"] = self.current_token[1]
-        self.folder_id = self.expression_id
+        self.folder_id = str(self.expression_id)
         self.next_token()
         if self.current_token[1] != "{":
+            self.raise_error("Expected { after namespace definition")
             return False
         self.next_token()
         try:
             while self.current_token[1] != "}":
                 if not self.parse_statement():
-                    self.raise_error("Expected Statement")
+                    self.raise_error("Expected Statement inside namespace")
         except TypeError:
             pass
         self.folder_id = 0
@@ -190,15 +186,18 @@ class GraphLangInterpreter:
             return False
         self.next_token()
         if self.current_token[0] != "identifier":
+            self.raise_error("Expected function name after defintion")
             return False
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
         self.next_token()
         if self.current_token[1] != "(":
+            self.raise_error("Expected (")
             return False
         self.next_token()
         while self.current_token[1] != ")":
             if self.current_token[0] != "identifier":
+                self.raise_error("Expected parameter")
                 return False
             self.location[-1]["latex"] += self.subscriptify(
                 self.current_token[1])
@@ -208,10 +207,12 @@ class GraphLangInterpreter:
                 self.next_token()
                 break
             if self.current_token[1] != ",":
+                self.raise_error("Expected ',' between parameters")
                 return False
             self.location[-1]["latex"] += ","
             self.next_token()
         if self.current_token[1] != "{":
+            self.raise_error("Expected { after function definition")
             return False
 
         self.location[-1]["latex"] += "="
@@ -251,7 +252,7 @@ class GraphLangInterpreter:
 
     def parse_operator(self):
         if self.current_token != None:
-            if self.current_token[1] not in ["=", "->", "-", "+", "/", "*"]:
+            if self.current_token[1] not in ["^", "=", "->", "-", "+", "/", "*", "<", ">", "<=", ">="]:
                 return False
         else:
             return False

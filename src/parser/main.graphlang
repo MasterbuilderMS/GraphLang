@@ -1,12 +1,2 @@
-# hello
 y = x
-a = 1
-b = 1
-y = a + b + 5
-fn f (a,b) {
-    a + b
-}
-ns Namespace {
-    x = 1
-    y = 1
-}
+y = x + 2
