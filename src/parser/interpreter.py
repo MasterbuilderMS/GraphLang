@@ -26,7 +26,7 @@ class GraphLangInterpreter:
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
             ("literal", r"\d+"),
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;]"),
-            ("operator", r"\+|-|\*|/|->|>|<|>=|<=|!=|="),
+            ("operator", r"\+|-|\*|/|->|>|<|>=|<=|!=|=|\^"),
             ("skip", r"[ \t]+"),
             ("comment", r"#.*"),
             ("line", r"\n")
@@ -56,23 +56,28 @@ class GraphLangInterpreter:
                 self.tokens.append((token_type, value))
             self.position = matcher.end()
             matcher = re.compile(token_regex).match(self.code, self.position)
-
-        if self.position != len(self.code):
-            self.raise_error(f"Unknown character: {self.code[self.position]} at {self.line_nr}: {self.position}")  # nopep8
+        try:
+            if self.position != len(self.code):
+                self.raise_error(f"Unknown character: {self.code[self.position]} at {self.line_nr}: {self.position}")  # nopep8
+        except AttributeError:
+            pass
 
     # ======= Utility functions =======
     # functions that are used to navigate the token list,
     # control the stack, and raise errors
 
     def run(self):
+        self.line_nr += 1
         self.parse_program()
 
     def raise_error(self, message):
-        raise ValueError(self.line_nr, ": ", message)
+        raise ValueError(f"Line: {self.line_nr}, {colors.RED}  {message}  {colors.END}")  # nopep8
 
     # get the next token
     def next_token(self):
         try:
+            if self.current_token[0] == "line":
+                self.line_nr += 1
             self.current_token = self.tokens[self.position + 1]
             self.position += 1
             # print(self.current_token)
@@ -153,7 +158,7 @@ class GraphLangInterpreter:
         self.location[-1]["id"] = self.expression_id
         self.location[-1]["folderId"] = self.folder_id
         if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
-            self.raise_error("Expected expression")
+            self.raise_error("Expected statement")
         self.next_token()
         return True
 
@@ -288,3 +293,4 @@ Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" +
         print(colors.RED + '''Failed to start compilation. Are you sure the file exists?''' + colors.END
               )
         exit()
+    os.system("pause")
