@@ -9,6 +9,8 @@ Programming language written for desmos
 - click always
 - done! 
 - the compiled desmos will be copied to clipboard!
+- In order to enter this into desmos, install the desmos text i/o extension (thanks to hyrodium at https://github.com/hyrodium/desmos-text-io/ for this project!)
+
 
 
 
