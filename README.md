@@ -1,7 +1,7 @@
-## GraphLang
+# GraphLang
 Programming language written for desmos
 
-## Installation
+# Installation
 - To install, download the executable from the releases page
 - write your graphlang code onto a file and save it with a `.graphlang` extension
 - right click the graphlang file in file explorer, and click open with
@@ -13,14 +13,14 @@ Programming language written for desmos
 
 
 
-## Development
-# Next release v1.0:
+# Development
+## Next release v1.0:
   - lists
   - list comprehension
   - points
   - possibly built in functions such as sort, mean, etc
-# v2.0:
+## v2.0:
   - Pre-compilation variable checking
   - expression evaluation e.g. 1+1 ---> 2
-# v3.0
+## v3.0
   - Macros
