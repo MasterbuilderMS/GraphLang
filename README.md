@@ -13,5 +13,14 @@ Programming language written for desmos
 
 
 
-
-ps. Ignore that github says it is mostly HTML (?)
+# Development
+ - Next release v1.0:
+  - lists
+  - list comprehension
+  - points
+  - possibly built in functions such as sort, mean, etc
+ - v2.0:
+  - Pre-compilation variable checking
+  - expression evaluation e.g. 1+1 ---> 2
+- v3.0
+  - Macros
