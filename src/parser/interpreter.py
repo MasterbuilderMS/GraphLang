@@ -28,6 +28,7 @@ class GraphLangInterpreter:
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;]"),
             ("operator", r"\+|-|\*|/|->|>|<|>=|<=|!=|=|\^"),
             ("skip", r"[ \t]+"),
+            ("note", r"\".*?\"|'.*?'"),
             ("comment", r"#.*"),
             ("line", r"\n")
         ]
@@ -36,6 +37,7 @@ class GraphLangInterpreter:
         self.position = 0
         self.constants = ["X", "Y", "x", "y"]  # variables allowed by desmos
         self.expression_template = None
+        self.note_template = None
         self.location = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
     # lexer
@@ -109,6 +111,11 @@ class GraphLangInterpreter:
             "id": 1,
             "name": ""
         }
+        self.note_template = {
+            "type": "text",
+            "id": 1,
+            "text": ""
+        }
 
         self.output = {
             "version": 11,
@@ -157,8 +164,16 @@ class GraphLangInterpreter:
         self.expression_id += 1
         self.location[-1]["id"] = self.expression_id
         self.location[-1]["folderId"] = self.folder_id
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression():
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note():
             self.raise_error("Expected statement")
+        self.next_token()
+        return True
+
+    def parse_note(self):
+        if self.current_token[0] != "note":
+            return False
+        self.location.append(copy.deepcopy(self.note_template))
+        self.location[-1]["text"] = str(self.current_token[1])
         self.next_token()
         return True
 
@@ -235,15 +250,33 @@ class GraphLangInterpreter:
         return True
 
     def parse_expression(self):  # x + 1
-        if not self.parse_value():
+        if not self.parse_value() and not self.parse_list():
             return False
         if self.parse_operator():
             self.parse_expression()
         if self.current_token != None:
-            if self.current_token[0] == "line":
+            if self.current_token[0] == "line" or self.current_token[1] in [",", "]"]:
                 return True
         else:
             return True
+
+    def parse_list(self):
+        if self.current_token[1] != "[":
+            return False
+        self.location[-1]["latex"] += "\left["
+        self.next_token()
+        while self.current_token[1] != "]":
+            if not self.parse_expression():
+                return False
+            if self.current_token[1] == "]":
+                self.location[-1]["latex"] += r"\right]"
+                return True
+            if self.current_token[1] != ",":
+                return False
+            self.location[-1]["latex"] += ","
+            self.next_token()
+        self.location[-1]["latex"] += r"\right]"
+        return True
 
     def parse_value(self):  # 1232, or x, y or hello
         if self.current_token != None:
@@ -251,7 +284,11 @@ class GraphLangInterpreter:
                 return False
         else:
             return True
-        self.location[-1]["latex"] += str(self.current_token[1])
+        if self.current_token[0] == "identifier":
+            self.location[-1]["latex"] += self.subscriptify(
+                str(self.current_token[1]))
+        else:
+            self.location[-1]["latex"] += str(self.current_token[1])
         self.next_token()
         return True
 
