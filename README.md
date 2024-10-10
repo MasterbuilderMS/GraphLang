@@ -10,8 +10,30 @@ Programming language written for desmos
 - done! 
 - the compiled desmos will be copied to clipboard!
 - In order to enter this into desmos, install the desmos text i/o extension (thanks to hyrodium at https://github.com/hyrodium/desmos-text-io/ for this project!)
+### Warning - many of these features could be unstable or will be changed at a later date!
+
+# Current Features
+ - expressions such as `y = x`
+ - Namespaces - maps to desmos folders:
+     ```
+     ns Namespace{
+     ```
+ - Functions
+ - Lists
+ - Sin, cos and tan functions (more coming)
 
 
 
+# Development
+## Next release v1.0:
+  - lists
+  - list comprehension
+  - points
+  - possibly built in functions such as sort, mean, etc
+## v2.0:
+  - Pre-compilation variable checking
+  - expression evaluation e.g. 1+1 ---> 2
+## v3.0
+  - Macros
 
-ps. Ignore that github says it is mostly HTML (?)
+
