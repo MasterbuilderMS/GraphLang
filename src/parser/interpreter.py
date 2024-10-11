@@ -40,7 +40,8 @@ class GraphLangInterpreter:
         self.note_template = None
         self.location = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
-        self.builtins = ["sin", "cos", "tan", "mean"]
+        self.builtins = ["sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
+                         "mad", "cov", "covp", "corr", "spearman", "stats", "count", "total", "join", "sort", "shuffle", "unique", "histogram", "dotplot", "boxplot", "random", "exp", "ln", "log", "int", "sum", "prod", "tone", "lcm", "sqrt", "polygon"]
     # lexer
 
     def lex(self):
@@ -251,7 +252,7 @@ class GraphLangInterpreter:
         return True
 
     def parse_expression(self):  # x + 1
-        if not self.parse_builtin() and not self.parse_value() and not self.parse_list():
+        if not self.parse_builtin() and not self.parse_value() and not self.parse_list() and not self.parse_point():
             return False
         if self.parse_operator():
             self.parse_expression()
@@ -328,6 +329,25 @@ class GraphLangInterpreter:
                 str(self.current_token[1]))
         else:
             self.location[-1]["latex"] += str(self.current_token[1])
+        self.next_token()
+        return True
+
+    def parse_point(self):
+        if self.current_token[1] != "(":
+            return False
+        self.next_token()
+        self.location[-1]["latex"] += r"\left("
+        if not self.parse_value():
+            return False
+        self.location[-1]["latex"] += self.current_token[1]
+        if self.current_token[1] != ",":
+            return False
+        self.next_token()
+        if not self.parse_value():
+            return False
+        self.location[-1]["latex"] += r"\right)"
+        if self.current_token[1] != ")":
+            return False
         self.next_token()
         return True
 
