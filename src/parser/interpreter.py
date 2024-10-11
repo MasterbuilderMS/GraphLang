@@ -265,16 +265,25 @@ class GraphLangInterpreter:
     def parse_builtin(self):
         if self.current_token[1] not in self.builtins:
             return False
-        self.location[-1]["latex"] += "\\" + self.current_token[1] + r"\left("
+        if self.current_token[1] in ["polygon"]:
+            self.location[-1]["latex"] += "\\operatorname{" + self.current_token[1] + r"}\left("  # nopep8
+        else:
+            self.location[-1]["latex"] += "\\" + self.current_token[1] + r"\left("  # nopep8
         self.next_token()
         if self.current_token[1] != "(":
             self.raise_error("Expected bracket")
         self.next_token()
         if not self.parse_expression():
             return False
-        if self.current_token[1] != ")":
-            self.raise_error("Expected end bracket")
+        while self.current_token[1] != ")":
+            if self.current_token[1] != ",":
+                self.raise_error("Expected ','")
+            self.location[-1]["latex"] += ","
+            self.next_token()
+            if not self.parse_expression():
+                return False
         self.location[-1]["latex"] += r"\right)"
+        self.next_token()
         return True
 
     def parse_comprehension(self):
