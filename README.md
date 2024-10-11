@@ -20,20 +20,19 @@ Programming language written for desmos
      ```
  - Functions
  - Lists
- - Sin, cos and tan functions (more coming)
+ - List comprehension
+ - Many desmos functions, e.g. sin, cos , tan
+ - polygons
 
 
 
 # Development
-## Next release v1.0:
-  - lists
-  - list comprehension
-  - points
-  - possibly built in functions such as sort, mean, etc
 ## v2.0:
   - Pre-compilation variable checking
   - expression evaluation e.g. 1+1 ---> 2
+  - Mainly focused on improving errors, and error-catching
+  - Possibly add namespace dot notation to access variables inside namespaces
 ## v3.0
-  - Macros
+  - Macros?
 
 
