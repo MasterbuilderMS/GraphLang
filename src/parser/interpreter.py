@@ -44,7 +44,7 @@ class GraphLangInterpreter:
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
         self.builtins = ["sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
                          "mad", "cov", "covp", "corr", "spearman", "stats", "count", "total", "join", "sort", "shuffle", "unique", "histogram", "dotplot", "boxplot", "random", "exp", "ln", "log", "int", "sum", "prod", "tone", "lcm", "sqrt", "polygon"]
-        self.inside_bracket = []
+        self.functions = []  # user functions
     # lexer
 
     def lex(self):
@@ -226,6 +226,7 @@ class GraphLangInterpreter:
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
         self.scope = self.current_token[1]
+        self.functions.append(self.current_token[1])
         self.next_token()
         if self.current_token[1] != "(":
             self.raise_error("Expected (")
@@ -291,7 +292,7 @@ class GraphLangInterpreter:
                 self.next_token()
 
         else:
-            if not self.parse_builtin() and not self.parse_value() and not self.parse_list() and not self.parse_point():
+            if not self.parse_function_call() and not self.parse_value() and not self.parse_list() and not self.parse_point():
                 return False
             if self.parse_operator():
                 self.parse_expression()
@@ -302,11 +303,13 @@ class GraphLangInterpreter:
         else:
             return True
 
-    def parse_builtin(self):
-        if self.current_token[1] not in self.builtins:
+    def parse_function_call(self):
+        if self.current_token[1] not in self.builtins and self.current_token[1] not in self.functions:
             return False
         if self.current_token[1] in ["polygon"]:
-            self.location[-1]["latex"] += "\\operatorname{" + self.current_token[1] + r"}\left("  # nopep8
+            self.location[-1]["latex"] += r"\operatorname{" + self.current_token[1] + r"}\left("  # nopep8
+        elif self.current_token[1] in self.functions:
+            self.location[-1]["latex"] += self.subscriptify(self.current_token[1]) + r"\left("  # nopep8
         else:
             self.location[-1]["latex"] += "\\" + self.current_token[1] + r"\left("  # nopep8
         builtin = self.current_token[1]
