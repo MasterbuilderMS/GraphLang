@@ -84,7 +84,6 @@ class GraphLangInterpreter:
             data = json.dumps(self.output)
             pyperclip.copy(data)
             print("Copied: ", data)
-            print(self.vars)
 
     def raise_error(self, message):
         raise ValueError(f"Line: {self.line_nr}, {colors.RED}  {message}  {colors.END}")  # nopep8
@@ -226,6 +225,7 @@ class GraphLangInterpreter:
             self.raise_error("Expected function name after defintion")
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
+        self.scope = self.current_token[1]
         self.next_token()
         if self.current_token[1] != "(":
             self.raise_error("Expected (")
@@ -234,7 +234,11 @@ class GraphLangInterpreter:
             if self.current_token[0] != "identifier":
                 self.raise_error("Expected parameter")
             self.location[-1]["latex"] += self.subscriptify(
-                self.current_token[1])
+                self.scope + self.current_token[1])
+            try:
+                self.vars[self.scope] += [self.current_token[1]]
+            except KeyError:
+                self.vars[self.scope] = [self.current_token[1]]
             self.next_token()
             if self.current_token[1] == ")":
                 self.location[-1]["latex"] += r"\right)"
@@ -258,7 +262,7 @@ class GraphLangInterpreter:
             self.next_token()
         if self.current_token[1] != "}":
             self.raise_error("'}' was not closed")
-
+        self.scope = "global"
         return True
 
     def parse_expression(self):  # x + 1
