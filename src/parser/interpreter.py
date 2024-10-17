@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
+from Utils import colors
 import re
 import json
 import pyperclip
-from Utils import colors
 import sys
 import time
 import os
@@ -14,9 +14,7 @@ class GraphLangInterpreter:
     def __init__(self, code):
         self.code: str = code
         self.tokens: list = []
-        self.stack: list = []  # stack for loading operations
-        self.precedence: dict = {}  # precedence of operations
-        self.vars: dict = {}  # dict of variables
+        self.vars: dict = {"global": []}  # dict of variables
         self.line_nr: int = 0
         self.output: dict = {}
         self.expression_id: int = 0
@@ -33,18 +31,24 @@ class GraphLangInterpreter:
             ("line", r"\n")
         ]
         self.lex()
-        self.current_token: tuple = self.tokens[0]
+        try:
+            self.current_token: tuple = self.tokens[0]
+        except IndexError:
+            self.current_token = None
         self.position = 0
         self.constants = ["X", "Y", "x", "y"]  # variables allowed by desmos
         self.expression_template = None
         self.note_template = None
+        self.scope = "global"
         self.location = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
         self.builtins = ["sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
                          "mad", "cov", "covp", "corr", "spearman", "stats", "count", "total", "join", "sort", "shuffle", "unique", "histogram", "dotplot", "boxplot", "random", "exp", "ln", "log", "int", "sum", "prod", "tone", "lcm", "sqrt", "polygon"]
+        self.inside_bracket = []
     # lexer
 
     def lex(self):
+
         token_regex = '|'.join(
             f'(?P<{pair[0]}>{pair[1]})' for pair in self.token_patterns)
         matcher = re.compile(token_regex).match(self.code)
@@ -71,8 +75,17 @@ class GraphLangInterpreter:
     # control the stack, and raise errors
 
     def run(self):
-        self.line_nr += 1
-        self.parse_program()
+        print(self.tokens)
+        if len(self.tokens) == 0:
+            pass
+        else:
+            self.line_nr += 1
+            self.parse_program()
+
+            data = json.dumps(self.output)
+            pyperclip.copy(data)
+            print("Copied: ", data)
+            print(self.vars)
 
     def raise_error(self, message):
         raise ValueError(f"Line: {self.line_nr}, {colors.RED}  {message}  {colors.END}")  # nopep8
@@ -85,6 +98,15 @@ class GraphLangInterpreter:
             self.current_token = self.tokens[self.position + 1]
             self.position += 1
             # print(self.current_token)
+        except IndexError:
+            self.current_token = None
+
+    def previous_token(self):
+        try:
+            if self.current_token[0] == "line":
+                self.line_nr -= 1
+            self.current_token = self.tokens[self.position - 1]
+            self.position -= 1
         except IndexError:
             self.current_token = None
 
@@ -150,16 +172,12 @@ class GraphLangInterpreter:
                 except TypeError:
                     pass
 
-        data = json.dumps(self.output)
-        pyperclip.copy(data)
-        print("Copied: ", data)
-
     # substatement checks if the statement is inside a function
 
     def parse_statement(self):
-        if self.current_token == None:
+        if self.current_token == None:  # if there is not statement, return true
             return True
-        while self.current_token[0] == "line":
+        while self.current_token[0] == "line":  # skip through extra lines
             self.next_token()
         self.location: list = self.output["expressions"]["list"]
         self.location.append(copy.deepcopy(self.expression_template))
@@ -186,13 +204,13 @@ class GraphLangInterpreter:
         self.location[-1]["id"] = self.expression_id
         self.next_token()
         if self.current_token[0] != "identifier":
-            return False
+            self.raise_error("Expected identifier")
+        self.scope = self.current_token[1]
         self.location[-1]["title"] = self.current_token[1]
         self.folder_id = str(self.expression_id)
         self.next_token()
         if self.current_token[1] != "{":
             self.raise_error("Expected { after namespace definition")
-            return False
         self.next_token()
         try:
             while self.current_token[1] != "}":
@@ -201,6 +219,7 @@ class GraphLangInterpreter:
         except TypeError:
             pass
         self.folder_id = 0
+        self.scope = "global"
         return True
 
     def parse_function(self):
@@ -209,18 +228,15 @@ class GraphLangInterpreter:
         self.next_token()
         if self.current_token[0] != "identifier":
             self.raise_error("Expected function name after defintion")
-            return False
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
         self.next_token()
         if self.current_token[1] != "(":
             self.raise_error("Expected (")
-            return False
         self.next_token()
         while self.current_token[1] != ")":
             if self.current_token[0] != "identifier":
                 self.raise_error("Expected parameter")
-                return False
             self.location[-1]["latex"] += self.subscriptify(
                 self.current_token[1])
             self.next_token()
@@ -230,12 +246,10 @@ class GraphLangInterpreter:
                 break
             if self.current_token[1] != ",":
                 self.raise_error("Expected ',' between parameters")
-                return False
             self.location[-1]["latex"] += ","
             self.next_token()
         if self.current_token[1] != "{":
             self.raise_error("Expected { after function definition")
-            return False
 
         self.location[-1]["latex"] += "="
 
@@ -247,15 +261,27 @@ class GraphLangInterpreter:
         while self.current_token[0] in ["line", "comment"]:
             self.next_token()
         if self.current_token[1] != "}":
-            return False
+            self.raise_error("'}' was not closed")
 
         return True
 
     def parse_expression(self):  # x + 1
-        if not self.parse_builtin() and not self.parse_value() and not self.parse_list() and not self.parse_point():
-            return False
-        if self.parse_operator():
+        if self.current_token[1] == "(":
+            self.location[-1]["latex"] += "\\left("
+            self.next_token()
             self.parse_expression()
+            if self.current_token[1] != ")":
+                self.raise_error("Expected )")
+            else:
+                self.location[-1]["latex"] += "\\right)"
+                self.next_token()
+
+        else:
+            if not self.parse_builtin() and not self.parse_value() and not self.parse_list() and not self.parse_point():
+                return False
+            if self.parse_operator():
+                self.parse_expression()
+
         if self.current_token != None:
             if self.current_token[0] == "line" or self.current_token[1] in [",", "]", ")"]:
                 return True
@@ -269,19 +295,20 @@ class GraphLangInterpreter:
             self.location[-1]["latex"] += "\\operatorname{" + self.current_token[1] + r"}\left("  # nopep8
         else:
             self.location[-1]["latex"] += "\\" + self.current_token[1] + r"\left("  # nopep8
+        builtin = self.current_token[1]
         self.next_token()
         if self.current_token[1] != "(":
             self.raise_error("Expected bracket")
         self.next_token()
         if not self.parse_expression():
-            return False
+            self.raise_error(f"Expected expression after {builtin}")
         while self.current_token[1] != ")":
             if self.current_token[1] != ",":
-                self.raise_error("Expected ','")
+                self.raise_error("Expected ',' after parameter")
             self.location[-1]["latex"] += ","
             self.next_token()
             if not self.parse_expression():
-                return False
+                self.raise_error(f"Expected expression after {builtin}")
         self.location[-1]["latex"] += r"\right)"
         self.next_token()
         return True
@@ -292,19 +319,20 @@ class GraphLangInterpreter:
         self.location[-1]["latex"] += self.current_token[1]
         self.next_token()
         if self.current_token[1] != "for":
-            return False
+            self.raise_error("Expected 'for'")
         self.location[-1]["latex"] += r"\operatorname{for}"
         self.next_token()
         if self.current_token[0] != "identifier":
             self.raise_error("Expected identifier after 'for'")
+        identifier = self.current_token[1]
         self.location[-1]["latex"] += self.current_token[1]
         self.next_token()
         if self.current_token[1] != "=":
-            return False
+            self.raise_error("expected '=' ")
         self.next_token()
         self.location[-1]["latex"] += "="
         if not self.parse_list():
-            return False
+            self.raise_error(f"{identifier} must be a list, not")
         self.next_token()
         return True
 
@@ -314,13 +342,11 @@ class GraphLangInterpreter:
         self.location[-1]["latex"] += r"\left["
         self.next_token()
         while self.current_token[1] != "]":
-            if not self.parse_comprehension() and not self.parse_expression():
-                return False
             if self.current_token[1] == "]":
                 self.location[-1]["latex"] += r"\right]"
                 return True
             if self.current_token[1] != ",":
-                return False
+                self.raise_error("expressions must be separated by a ','")
             self.location[-1]["latex"] += ","
             self.next_token()
         self.location[-1]["latex"] += r"\right]"
@@ -328,12 +354,32 @@ class GraphLangInterpreter:
         return True
 
     def parse_value(self):  # 1232, or x, y or hello
+        # check if current token is an identifier or literal
         if self.current_token != None:
             if self.current_token[0] not in ["identifier", "literal"]:
                 return False
         else:
             return True
+        # if it is a literal, decide if it is already defined in the current scope
         if self.current_token[0] == "identifier":
+            # define variable
+            if self.location[-1]["latex"] == "" and self.tokens[self.position + 1][1] == "=":
+                try:
+                    self.vars[self.scope] += [self.current_token[1]]
+                except KeyError:
+                    self.vars[self.scope] = [self.current_token[1]]
+            if self.current_token[1] in self.vars.keys() and self.current_token[1] != "global":
+                scope = copy.deepcopy(self.current_token[1])
+                self.next_token()
+                if self.current_token[1] != ".":
+                    self.raise_error("expected '.'")
+                self.next_token()
+                self.scope = scope
+                self.parse_value()
+                return True
+            if self.current_token[1] not in self.vars[self.scope] and self.current_token[1] not in self.constants:
+                self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
+
             self.location[-1]["latex"] += self.subscriptify(
                 str(self.current_token[1]))
         else:
@@ -342,21 +388,22 @@ class GraphLangInterpreter:
         return True
 
     def parse_point(self):
+
         if self.current_token[1] != "(":
             return False
         self.next_token()
         self.location[-1]["latex"] += r"\left("
-        if not self.parse_value():
-            return False
+        if not self.parse_expression():
+            self.raise_error("Points must have two coordinates")
         self.location[-1]["latex"] += self.current_token[1]
         if self.current_token[1] != ",":
-            return False
+            self.raise_error("Expected ',' in point")
         self.next_token()
-        if not self.parse_value():
-            return False
+        if not self.parse_expression():
+            self.raise_error("Points must have two coordinates")
         self.location[-1]["latex"] += r"\right)"
         if self.current_token[1] != ")":
-            return False
+            self.raise_error("Expected ')'")
         self.next_token()
         return True
 
