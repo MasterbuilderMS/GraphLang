@@ -28,11 +28,12 @@ Programming language written for desmos
 
 # Development
 ## v2.0:
-  - Pre-compilation variable checking
-  - expression evaluation e.g. 1+1 ---> 2
-  - Mainly focused on improving errors, and error-catching
-  - Possibly add namespace dot notation to access variables inside namespaces
+  [x] Pre-compilation variable checking 
+  [x] expression evaluation e.g. 1+1 ---> 2 
+  [] Mainly focused on improving errors, and error-catching
+  [x] Possibly add namespace dot notation to access variables inside namespaces
+  [x] function calls and scoping system
 ## v3.0
-  - Macros?
+  [] Macros?
 
 
