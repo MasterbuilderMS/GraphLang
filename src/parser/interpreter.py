@@ -394,9 +394,9 @@ class GraphLangInterpreter:
                 self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
 
             self.location[-1]["latex"] += self.subscriptify(
-                str(self.current_token[1]))
+                self.scope + str(self.current_token[1]))
         else:
-            self.location[-1]["latex"] += str(self.current_token[1])
+            self.location[-1]["latex"] += str(self.current_token[1])  # nopep8
         self.next_token()
         return True
 
