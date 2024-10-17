@@ -75,7 +75,6 @@ class GraphLangInterpreter:
     # control the stack, and raise errors
 
     def run(self):
-        print(self.tokens)
         if len(self.tokens) == 0:
             pass
         else:
@@ -101,14 +100,11 @@ class GraphLangInterpreter:
         except IndexError:
             self.current_token = None
 
-    def previous_token(self):
+    def peek_token(self, num):
         try:
-            if self.current_token[0] == "line":
-                self.line_nr -= 1
-            self.current_token = self.tokens[self.position - 1]
-            self.position -= 1
+            return self.tokens[self.position + num]
         except IndexError:
-            self.current_token = None
+            pass
 
     def subscriptify(self, text):
         if len(list(text)) == 1:
@@ -266,6 +262,20 @@ class GraphLangInterpreter:
         return True
 
     def parse_expression(self):  # x + 1
+        # check if it is a point first:
+        # safety in case it isn't a point so we can jump back here
+        return_latex = copy.deepcopy(self.location[-1]["latex"])
+        return_location = copy.deepcopy(self.position)
+        try:
+            if not self.parse_point():
+                self.position = return_location - 1
+                self.location[-1]["latex"] = return_latex
+            else:
+                return True
+        except ValueError:
+            self.position = return_location - 1
+            self.location[-1]["latex"] = return_latex
+        self.next_token()
         if self.current_token[1] == "(":
             self.location[-1]["latex"] += "\\left("
             self.next_token()
@@ -356,10 +366,13 @@ class GraphLangInterpreter:
     def parse_value(self):  # 1232, or x, y or hello
         # check if current token is an identifier or literal
         if self.current_token != None:
-            if self.current_token[0] not in ["identifier", "literal"]:
+            if (self.current_token[0] not in ["identifier", "literal"]) and self.current_token[1] not in ["-", "+"]:
                 return False
         else:
             return True
+        if self.current_token[1] == "-":
+            self.location[-1]["latex"] += "-"
+            self.next_token()
         # if it is a literal, decide if it is already defined in the current scope
         if self.current_token[0] == "identifier":
             # define variable
@@ -388,16 +401,15 @@ class GraphLangInterpreter:
         return True
 
     def parse_point(self):
-
         if self.current_token[1] != "(":
             return False
         self.next_token()
         self.location[-1]["latex"] += r"\left("
         if not self.parse_expression():
             self.raise_error("Points must have two coordinates")
-        self.location[-1]["latex"] += self.current_token[1]
         if self.current_token[1] != ",":
             self.raise_error("Expected ',' in point")
+        self.location[-1]["latex"] += self.current_token[1]
         self.next_token()
         if not self.parse_expression():
             self.raise_error("Points must have two coordinates")
