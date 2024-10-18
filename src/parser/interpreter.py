@@ -10,6 +10,21 @@ import os
 import copy
 
 
+class Error(BaseException):
+    def __init__(self, message, lines: list, line_nr):
+        self.message = message
+        self.line_number = line_nr
+        self.new_message = f'''
+Traceback (most recent call last):
+File {colors.BLUE}"<{sys.argv[1]}>"{colors.END}, line {colors.BLUE}{self.line_number}{colors.END}:
+    {lines[self.line_number - 1]}
+    ^'''
+        for i in range(len(lines[self.line_number-1])):
+            self.new_message += "^"
+        self.new_message += f"\n{colors.RED}{message}{colors.END}"
+        super().__init__(self.new_message)
+
+
 class GraphLangInterpreter:
     def __init__(self, code):
         self.code: str = code
@@ -76,6 +91,17 @@ class GraphLangInterpreter:
     # control the stack, and raise errors
 
     def run(self):
+        # setup exception handling hook
+        def custom_excepthook(exc_type, exc_value, exc_traceback):
+            if isinstance(exc_value, Error):
+                # Red text for better visibility.
+                print(f"{exc_value}")
+            else:
+                # For other exceptions, you can still display the full traceback if needed.
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+        sys.excepthook = custom_excepthook
+
         if len(self.tokens) == 0:
             pass
         else:
@@ -87,19 +113,10 @@ class GraphLangInterpreter:
             print("Copied: ", data)
 
     def raise_error(self, message):
-        os.system("cls")
-        print("Traceback: most recent call last")
-        if self.scope == "global":
-            print(f"Error in file {colors.BLUE}<{sys.argv[1]}>{colors.END} in line {self.line_nr}:\n{colors.RED} {self.lines[self.line_nr-1]}")  # nopep8
-        else:
-            print(f"Error in file {colors.BLUE}<{sys.argv[1]}>{colors.END} in line {self.line_nr}:\n{colors.RED}{self.lines[self.line_nr-1]} {colors.END}")  # nopep8
-            print(f"\tError in {colors.BLUE}{self.scope}{colors.END} in line {self.line_nr}:\n{colors.RED}{self.lines[self.line_nr-1]} {colors.END}")  # nopep8
-
-        print(f"error: {message} {colors.END}")
-        exit()
-        # raise ValueError(f"Line: {self.line_nr}, {colors.RED}  {message}  {colors.END}")  # nopep8
+        raise Error(message, self.lines, self.line_nr)
 
     # get the next token
+
     def next_token(self):
         try:
             if self.current_token[0] == "line":
@@ -288,7 +305,7 @@ class GraphLangInterpreter:
                 self.location[-1]["latex"] = return_latex
             else:
                 return True
-        except ValueError:
+        except Error:
             self.position = return_location - 1
             self.location[-1]["latex"] = return_latex
         self.next_token()
