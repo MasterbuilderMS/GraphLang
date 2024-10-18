@@ -31,6 +31,7 @@ class GraphLangInterpreter:
             ("line", r"\n")
         ]
         self.lex()
+        self.lines = self.code.splitlines()
         try:
             self.current_token: tuple = self.tokens[0]
         except IndexError:
@@ -86,7 +87,17 @@ class GraphLangInterpreter:
             print("Copied: ", data)
 
     def raise_error(self, message):
-        raise ValueError(f"Line: {self.line_nr}, {colors.RED}  {message}  {colors.END}")  # nopep8
+        os.system("cls")
+        print("Traceback: most recent call last")
+        if self.scope == "global":
+            print(f"Error in file {colors.BLUE}<{sys.argv[1]}>{colors.END} in line {self.line_nr}:\n{colors.RED} {self.lines[self.line_nr-1]}")  # nopep8
+        else:
+            print(f"Error in file {colors.BLUE}<{sys.argv[1]}>{colors.END} in line {self.line_nr}:\n{colors.RED}{self.lines[self.line_nr-1]} {colors.END}")  # nopep8
+            print(f"\tError in {colors.BLUE}{self.scope}{colors.END} in line {self.line_nr}:\n{colors.RED}{self.lines[self.line_nr-1]} {colors.END}")  # nopep8
+
+        print(f"error: {message} {colors.END}")
+        exit()
+        # raise ValueError(f"Line: {self.line_nr}, {colors.RED}  {message}  {colors.END}")  # nopep8
 
     # get the next token
     def next_token(self):
