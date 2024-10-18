@@ -16,12 +16,13 @@ class Error(BaseException):
         self.line_number = line_nr
         self.new_message = f'''
 Traceback (most recent call last):
-File {colors.BLUE}"<{sys.argv[1]}>"{colors.END}, line {colors.BLUE}{self.line_number}{colors.END}:
+File {colors.BLUE}"<{sys.argv[1]}>"{colors.END}, line {colors.BLUE}{self.line_number}{colors.END}, in {colors.BLUE}<module>{colors.END}:
     {lines[self.line_number - 1]}
     ^'''
         for i in range(len(lines[self.line_number-1])):
             self.new_message += "^"
-        self.new_message += f"\n{colors.RED}{message}{colors.END}"
+        self.new_message += f"\nSyntax Error: {
+            colors.RED}{message}{colors.END}"
         super().__init__(self.new_message)
 
 
