@@ -12,7 +12,7 @@ import copy
 
 class Error(BaseException):
     def __init__(self, message, lines: list, line_nr):
-        self.message = message
+        self.message = "Syntax Error: " + message
         self.line_number = line_nr
         self.new_message = f'''
 Traceback (most recent call last):
