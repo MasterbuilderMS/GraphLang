@@ -34,6 +34,6 @@ Programming language written for desmos
    - [x] Possibly add namespace dot notation to access variables inside namespaces
    - [x] function calls and scoping system
 ## v3.0
-  [] Macros?
+   - [ ] Macros?
 
 
