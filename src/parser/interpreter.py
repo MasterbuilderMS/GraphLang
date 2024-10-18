@@ -482,10 +482,10 @@ Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" +
         with open(sys.argv[1], "rt") as f:
             code = f.read()
             os.system("cls")
-            for i in range(30):
+            for i in range(10):
                 os.system("cls")
-                print(colors.GREEN + "Compiling" + (" ."*i) + colors.END)
-                time.sleep(0.0001)
+                print(colors.GREEN + "Compiling" + ("............."*i) + colors.END)  # nopep8
+                time.sleep(0.001)
 
             _ = GraphLangInterpreter(code)
             _.run()
