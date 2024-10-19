@@ -305,7 +305,13 @@ class GraphLangInterpreter:
                 self.position = return_location - 1
                 self.location[-1]["latex"] = return_latex
             else:
-                return True
+                if self.parse_operator():
+                    self.parse_expression()
+                if self.current_token != None:
+                    if self.current_token[0] == "line" or self.current_token[1] in [",", "]", ")"]:
+                        return True
+                else:
+                    return True
         except Error:
             self.position = return_location - 1
             self.location[-1]["latex"] = return_latex
@@ -335,6 +341,7 @@ class GraphLangInterpreter:
     def parse_function_call(self):
         if self.current_token[1] not in self.builtins and self.current_token[1] not in self.functions:
             return False
+        print(self.vars)
         if self.current_token[1] in ["polygon"]:
             self.location[-1]["latex"] += r"\operatorname{" + self.current_token[1] + r"}\left("  # nopep8
         elif self.current_token[1] in self.functions:
@@ -388,9 +395,9 @@ class GraphLangInterpreter:
         self.location[-1]["latex"] += r"\left["
         self.next_token()
         while self.current_token[1] != "]":
+            self.parse_expression()
             if self.current_token[1] == "]":
-                self.location[-1]["latex"] += r"\right]"
-                return True
+                break
             if self.current_token[1] != ",":
                 self.raise_error("expressions must be separated by a ','")
             self.location[-1]["latex"] += ","
@@ -425,6 +432,7 @@ class GraphLangInterpreter:
                 self.next_token()
                 self.scope = scope
                 self.parse_value()
+                self.scope = "global"
                 return True
             if self.current_token[1] not in self.vars[self.scope] and self.current_token[1] not in self.constants:
                 self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
@@ -434,6 +442,16 @@ class GraphLangInterpreter:
         else:
             self.location[-1]["latex"] += str(self.current_token[1])  # nopep8
         self.next_token()
+        if self.current_token[1] == "[":
+            self.location[-1]["latex"] += r"\left["
+            self.next_token()
+            if not self.parse_value():
+                self.raise_error("Expected value after '['")
+            if self.current_token[1] != "]":
+                self.raise_error("Expected ']'")
+            self.location[-1]["latex"] += r"\right]"
+            self.next_token()
+
         return True
 
     def parse_point(self):
