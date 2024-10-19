@@ -95,8 +95,8 @@ class GraphLangInterpreter:
         # setup exception handling hook
         def custom_excepthook(exc_type, exc_value, exc_traceback):
             if isinstance(exc_value, Error):
-                # Red text for better visibility.
                 print(f"{exc_value}")
+                os.system("pause")
             else:
                 # For other exceptions, you can still display the full traceback if needed.
                 sys.__excepthook__(exc_type, exc_value, exc_traceback)
