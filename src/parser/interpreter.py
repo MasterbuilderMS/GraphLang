@@ -59,12 +59,19 @@ class GraphLangInterpreter:
         self.scope = "global"
         self.location = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
-        self.builtins = ["sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
+        self.builtins = ["hsv", "rgb", "sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
                          "mad", "cov", "covp", "corr", "spearman", "stats", "count", "total", "join", "sort", "shuffle", "unique", "histogram", "dotplot", "boxplot", "random", "exp", "ln", "log", "int", "sum", "prod", "tone", "lcm", "sqrt", "polygon"]
         self.functions = []  # user functions
     # lexer
 
     def lex(self):
+        """
+        Lexes the code and adds tokens to self.tokens.
+
+        Returns
+        -------
+        None
+        """
 
         token_regex = '|'.join(
             f'(?P<{pair[0]}>{pair[1]})' for pair in self.token_patterns)
@@ -92,7 +99,9 @@ class GraphLangInterpreter:
     # control the stack, and raise errors
 
     def run(self):
+        """Run the interpreter, lexing, parsing, evaluating, and copying output to the clipboard."""
         # setup exception handling hook
+
         def custom_excepthook(exc_type, exc_value, exc_traceback):
             if isinstance(exc_value, Error):
                 print(f"{exc_value}")
@@ -114,11 +123,21 @@ class GraphLangInterpreter:
             print("Copied: ", data)
 
     def raise_error(self, message):
+        """
+        Raise an error with the given message, including the line number and code above it
+
+        :param message: The error message to be displayed
+        :type message: str
+        """
         raise Error(message, self.lines, self.line_nr)
 
     # get the next token
 
     def next_token(self):
+        """
+        Get the next token from the token list, incrementing the line number if the current token is a newline.
+        If the end of the list is reached, set the current token to None.
+        """
         try:
             if self.current_token[0] == "line":
                 self.line_nr += 1
@@ -129,12 +148,22 @@ class GraphLangInterpreter:
             self.current_token = None
 
     def peek_token(self, num):
+
         try:
             return self.tokens[self.position + num]
         except IndexError:
             pass
 
     def subscriptify(self, text):
+        """
+        This function converts the given text into a subscript format if the text length is greater than 1.
+
+        Parameters:
+            text (str): The input text to be converted into subscript format.
+
+        Returns:
+            str: The text converted into subscript format.
+        """
         if len(list(text)) == 1:
             return text
         else:
@@ -144,6 +173,21 @@ class GraphLangInterpreter:
     # each function returns true or false
 
     def parse_program(self):
+        """
+        parse_program is the top-level parsing function. It parses a complete program
+        into a JSON object that is compatible with Graphing Calculator's data format.
+
+        The function works by parsing a statement, and then keeping track of the
+        current token. If the current token is not a newline token, it will parse
+        another statement. If the current token is a newline token, it will ignore
+        it and move on to the next token. This is done until the current token is
+        None.
+
+        At the start of the function, the output dictionary is initialized with
+        the required fields for Graphing Calculator.
+
+        :return: None
+        """
         self.expression_template = {
             "type": "expression",
             "id": 1,
@@ -199,6 +243,12 @@ class GraphLangInterpreter:
     # substatement checks if the statement is inside a function
 
     def parse_statement(self):
+        """
+        parse_statement parses a single statement in the language. It first skips through lines and then adds a new expression to the output. If the current token is a namespace, function, expression, or note, it parses that. If none of those, it raises an error. It then moves the position to the next token and returns True.
+
+        Returns:
+            bool: True if the statement was parsed successfully, False otherwise.
+        """
         if self.current_token == None:  # if there is not statement, return true
             return True
         while self.current_token[0] == "line":  # skip through extra lines
@@ -214,6 +264,15 @@ class GraphLangInterpreter:
         return True
 
     def parse_note(self):
+        """
+        This function parses a note definition in the language and adds the note text to the output.
+
+        It first checks if the current token is "note". If not, it returns False.
+
+        Then it adds the note text to the current expression.
+
+        Returns True if the note was parsed successfully, False otherwise.
+        """
         if self.current_token[0] != "note":
             return False
         self.location.append(copy.deepcopy(self.note_template))
@@ -222,6 +281,21 @@ class GraphLangInterpreter:
         return True
 
     def parse_namespace(self):
+        """
+        This function parses a namespace definition in the language and adds the folder to the output.
+
+        It first checks if the current token is "ns". If not, it returns False.
+
+        Then it adds the namespace name to the current expression and checks if the next token is an identifier.
+        If not, it raises an error.
+
+        Then it adds the folder to the output and changes the folder id to the current expression id.
+        It then parses all the statements inside the namespace.
+
+        Finally, it resets the folder id back to 0 and the scope back to "global".
+
+        Returns True if the namespace was parsed successfully, False otherwise.
+        """
         if self.current_token[1] != "ns":
             return False
         self.location[-1] = copy.deepcopy(self.folder_template)
@@ -247,6 +321,20 @@ class GraphLangInterpreter:
         return True
 
     def parse_function(self):
+        """
+        parse_function parses a function definition in the language and adds the function to the output.
+
+        It first checks if the current token is "fn". If not, it returns False.
+
+        Then it adds the function name and parameters to the current expression.
+
+        Then it parses all the statements inside the function.
+
+        Finally, it resets the scope back to "global" and returns True.
+
+        Returns True if the function was parsed successfully, False otherwise.
+        """
+
         if self.current_token[1] != "fn":
             return False
         self.next_token()
@@ -296,6 +384,15 @@ class GraphLangInterpreter:
         return True
 
     def parse_expression(self):  # x + 1
+        """
+        parse_expression parses an expression from the source code. It first attempts to parse a point, and if that fails, it attempts to parse a function call, a value, a list, or a point. If any of those fail, it raises an error. After parsing the first part of the expression, it checks to see if there is an operator, and if there is, it parses the rest of the expression. It keeps track of the current position and the current latex string so that if a parse fails, it can go back to the position right before the parse started and try a different parse. It also keeps track of the current scope and the current folder id.
+
+        Returns:
+            bool: True if the expression was parsed successfully, False otherwise.
+        """
+
+        if self.current_token[1] == "PolygonAverageDist":
+            pass
         # check if it is a point first:
         # safety in case it isn't a point so we can jump back here
         return_latex = copy.deepcopy(self.location[-1]["latex"])
@@ -325,6 +422,8 @@ class GraphLangInterpreter:
             else:
                 self.location[-1]["latex"] += "\\right)"
                 self.next_token()
+            if self.parse_operator():
+                self.parse_expression()
 
         else:
             if not self.parse_function_call() and not self.parse_value() and not self.parse_list() and not self.parse_point():
