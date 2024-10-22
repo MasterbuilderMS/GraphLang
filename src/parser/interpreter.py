@@ -40,7 +40,7 @@ class GraphLangInterpreter:
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
             ("literal", r"\d+"),
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;\!]"),
-            ("operator", r"\+|-|\*|/|->|>|<|>=|<=|!=|=|\^"),
+            ("operator", r"->|\+|-|\*|/|>|<|>=|<=|!=|=|\^"),
             ("skip", r"[ \t]+"),
             ("note", r"\".*?\"|'.*?'"),
             ("comment", r"#.*"),
@@ -152,8 +152,6 @@ class GraphLangInterpreter:
         try:
             if self.current_token[0] == "line":
                 self.line_nr += 1
-            if self.position == 114:
-                print("hello")
             self.current_token = self.tokens[self.position + 1]
             self.position += 1
             # print(self.current_token)
@@ -514,14 +512,9 @@ class GraphLangInterpreter:
             self.next_token()
             macro_text = ""
             for i in macro["args"]:
-                print("i=", i)
-                print(self.current_token[1])
                 if i in ["__name__"]:
-                    print("{" + i + "}")
-                    print("__name__ = ", self.special[i])
 
                     macro_text = macro["latex"].replace("{" + i + "}", " " + copy.deepcopy(self.special[i]))  # nopep8
-                    print(macro_text)
                     continue
                 elif self.current_token[1] != ")":
                     macro_text = macro["latex"].replace("{" + i + "}", self.current_token[1])  # nopep8
