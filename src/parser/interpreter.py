@@ -36,7 +36,7 @@ class GraphLangInterpreter:
         self.expression_id: int = 0
         self.folder_id: int = 0
         self.token_patterns: list[tuple[str, str]] = [
-            ("keyword", r"fn|ns|if|for|macro"),
+            ("keyword", r"fn|ns|if|for|macro|import"),
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
             ("literal", r"\d+"),
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;\!]"),
@@ -268,9 +268,27 @@ class GraphLangInterpreter:
         self.expression_id += 1
         self.location[-1]["id"] = self.expression_id
         self.location[-1]["folderId"] = self.folder_id
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro():
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro() and not self.parse_import():
             self.raise_error("Expected statement")
         self.next_token()
+        return True
+
+    def parse_import(self):
+        if self.current_token[1] != "import":
+            return False
+        self.next_token()
+        imported = ""
+        try:
+            with open((".\\" + self.current_token[1]) + ".graphlang", "r") as f:
+                self.next_token()
+                self.next_token()
+                self.next_token()
+                imported = f.read()
+                [self.tokens.insert(self.position+1, i) for i in reversed(self.lex(imported))]  # nopep8
+                self.code = ''.join([str(token[1]) for token in self.tokens])
+                self.lines = self.code.splitlines()
+        except FileNotFoundError:
+            self.raise_error("File not found")
         return True
 
     def parse_note(self):
