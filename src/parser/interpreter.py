@@ -662,7 +662,10 @@ class GraphLangInterpreter:
                 return False
         else:
             return False
-        self.location[-1]["latex"] += str(self.current_token[1])
+        if self.current_token[1] == "->":
+            self.location[-1]["latex"] += "\\to "
+        else:
+            self.location[-1]["latex"] += str(self.current_token[1])
         self.next_token()
         return True
 
