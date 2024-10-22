@@ -36,23 +36,27 @@ class GraphLangInterpreter:
         self.expression_id: int = 0
         self.folder_id: int = 0
         self.token_patterns: list[tuple[str, str]] = [
-            ("keyword", r"fn|ns|if|for"),
+            ("keyword", r"fn|ns|if|for|macro"),
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
             ("literal", r"\d+"),
-            ("punctuation", r"[\{\}\[\]\(\)\.\,\;]"),
+            ("punctuation", r"[\{\}\[\]\(\)\.\,\;\!]"),
             ("operator", r"\+|-|\*|/|->|>|<|>=|<=|!=|=|\^"),
             ("skip", r"[ \t]+"),
             ("note", r"\".*?\"|'.*?'"),
             ("comment", r"#.*"),
             ("line", r"\n")
         ]
-        self.lex()
+
+        self.position = 0
+
+        self.tokens = self.lex(self.code)
+        self.position = 0
         self.lines = self.code.splitlines()
         try:
             self.current_token: tuple = self.tokens[0]
         except IndexError:
             self.current_token = None
-        self.position = 0
+
         self.constants = ["X", "Y", "x", "y"]  # variables allowed by desmos
         self.expression_template = None
         self.note_template = None
@@ -62,9 +66,11 @@ class GraphLangInterpreter:
         self.builtins = ["hsv", "rgb", "sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
                          "mad", "cov", "covp", "corr", "spearman", "stats", "count", "total", "join", "sort", "shuffle", "unique", "histogram", "dotplot", "boxplot", "random", "exp", "ln", "log", "int", "sum", "prod", "tone", "lcm", "sqrt", "polygon"]
         self.functions = []  # user functions
+        self.macros: list[dict[str:str, str:str]] = []  # user-defined macros
+        self.special = {"__name__": ""}  # special variables
     # lexer
 
-    def lex(self):
+    def lex(self, code):
         """
         Lexes the code and adds tokens to self.tokens.
 
@@ -72,27 +78,31 @@ class GraphLangInterpreter:
         -------
         None
         """
-
+        starting_position = copy.deepcopy(self.position)
+        self.position = 0
+        tokens = []
         token_regex = '|'.join(
             f'(?P<{pair[0]}>{pair[1]})' for pair in self.token_patterns)
-        matcher = re.compile(token_regex).match(self.code)
+        matcher = re.compile(token_regex).match(code)
         while matcher is not None:
             token_type = matcher.lastgroup
             value = matcher.group(token_type)
             if token_type == "literal":
                 value = int(value)
-                self.tokens.append((token_type, value))
+                tokens.append((token_type, value))
             elif token_type in ["skip", "comment"]:
                 pass
             else:
-                self.tokens.append((token_type, value))
+                tokens.append((token_type, value))
             self.position = matcher.end()
-            matcher = re.compile(token_regex).match(self.code, self.position)
+            matcher = re.compile(token_regex).match(code, self.position)
         try:
-            if self.position != len(self.code):
-                self.raise_error(f"Unknown character: {self.code[self.position]} at {self.line_nr}: {self.position}")  # nopep8
+            if self.position != len(code):
+                self.raise_error(f"Unknown character: {code[self.position]} at {self.line_nr}: {self.position}")  # nopep8
         except AttributeError:
             pass
+        self.position = starting_position
+        return tokens
 
     # ======= Utility functions =======
     # functions that are used to navigate the token list,
@@ -121,6 +131,7 @@ class GraphLangInterpreter:
             data = json.dumps(self.output)
             pyperclip.copy(data)
             print("Copied: ", data)
+            print(self.macros)
 
     def raise_error(self, message):
         """
@@ -141,6 +152,8 @@ class GraphLangInterpreter:
         try:
             if self.current_token[0] == "line":
                 self.line_nr += 1
+            if self.position == 114:
+                print("hello")
             self.current_token = self.tokens[self.position + 1]
             self.position += 1
             # print(self.current_token)
@@ -239,7 +252,6 @@ class GraphLangInterpreter:
                     self.parse_statement()
                 except TypeError:
                     pass
-
     # substatement checks if the statement is inside a function
 
     def parse_statement(self):
@@ -258,7 +270,7 @@ class GraphLangInterpreter:
         self.expression_id += 1
         self.location[-1]["id"] = self.expression_id
         self.location[-1]["folderId"] = self.folder_id
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note():
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro():
             self.raise_error("Expected statement")
         self.next_token()
         return True
@@ -426,7 +438,7 @@ class GraphLangInterpreter:
                 self.parse_expression()
 
         else:
-            if not self.parse_function_call() and not self.parse_value() and not self.parse_list() and not self.parse_point():
+            if not self.parse_callable() and not self.parse_value() and not self.parse_list() and not self.parse_point():
                 return False
             if self.parse_operator():
                 self.parse_expression()
@@ -437,14 +449,88 @@ class GraphLangInterpreter:
         else:
             return True
 
-    def parse_function_call(self):
-        if self.current_token[1] not in self.builtins and self.current_token[1] not in self.functions:
+    def parse_macro(self):
+        if self.current_token[1] != "macro":
             return False
-        print(self.vars)
+        self.next_token()
+        macro_name = self.current_token[1]
+        if self.current_token[0] != "identifier":
+            self.raise_error("Expected identifier after macro")
+        self.macros.append(
+            {"name": macro_name, "latex": "", "args": []})
+        self.next_token()
+        if self.current_token[1] != "!":
+            self.raise_error("Macro names must end in !")
+        self.next_token()
+        if self.current_token[1] != "(":
+            self.raise_error("Expected (")
+        self.next_token()
+        while self.current_token[1] != ")":
+            if self.current_token[0] != "identifier" and self.current_token[1] not in ["__name__"]:
+                self.raise_error("Expected parameter")
+            try:
+                self.vars[self.scope] += [self.current_token[1]]
+                self.macros[-1]["args"] += [self.current_token[1]]
+            except KeyError:
+                self.vars[self.scope] = [self.current_token[1]]
+                self.macros[-1]["args"] += [self.current_token[1]]
+            self.next_token()
+            if self.current_token[1] == ")":
+                self.next_token()
+                break
+            if self.current_token[1] != ",":
+                self.raise_error("Expected ',' between parameters")
+            self.macros[-1]["latex"] += ","
+            self.next_token()
+        if self.current_token[1] != "{":
+            self.raise_error("Expected { after function definition")
+        self.next_token()
+        brackets = 0
+        while self.current_token[1] != "}" or brackets != 0:
+            if self.current_token[1] == "{":
+                brackets += 1
+            elif self.current_token[1] == "}":
+                brackets -= 1
+            self.macros[-1]["latex"] += str(self.current_token[1])
+            self.next_token()
+        self.macros[-1]["latex"] = self.macros[-1]["latex"][1:]
+        return True
+
+    def parse_callable(self):
+        if self.current_token[1] not in self.builtins and self.current_token[1] not in (self.functions + [macro["name"] for macro in self.macros]):
+            return False
         if self.current_token[1] in ["polygon"]:
             self.location[-1]["latex"] += r"\operatorname{" + self.current_token[1] + r"}\left("  # nopep8
         elif self.current_token[1] in self.functions:
             self.location[-1]["latex"] += self.subscriptify(self.current_token[1]) + r"\left("  # nopep8
+        elif self.current_token[1] in [i["name"] for i in self.macros]:
+            macro = next((item for item in self.macros if item['name'] == self.current_token[1]), None)  # nopep8
+            self.next_token()
+            if self.current_token[1] != "!":
+                self.raise_error("Expected ! after macro name")
+            self.next_token()
+            if self.current_token[1] != "(":
+                self.raise_error("Expected ( after macro name")
+            self.next_token()
+            macro_text = ""
+            for i in macro["args"]:
+                print("i=", i)
+                print(self.current_token[1])
+                if i in ["__name__"]:
+                    print("{" + i + "}")
+                    print("__name__ = ", self.special[i])
+
+                    macro_text = macro["latex"].replace("{" + i + "}", " " + copy.deepcopy(self.special[i]))  # nopep8
+                    print(macro_text)
+                    continue
+                elif self.current_token[1] != ")":
+                    macro_text = macro["latex"].replace("{" + i + "}", self.current_token[1])  # nopep8
+            # update lines, code and token list
+            self.next_token()
+            [self.tokens.insert(self.position+1, i) for i in reversed(self.lex(macro_text))]  # nopep8
+            self.code = ''.join([str(token[1]) for token in self.tokens])
+            self.lines = self.code.splitlines()
+            return True
         else:
             self.location[-1]["latex"] += "\\" + self.current_token[1] + r"\left("  # nopep8
         builtin = self.current_token[1]
@@ -521,8 +607,12 @@ class GraphLangInterpreter:
             if self.location[-1]["latex"] == "" and self.tokens[self.position + 1][1] == "=":
                 try:
                     self.vars[self.scope] += [self.current_token[1]]
+                    self.special["__name__"] = self.current_token[1]
+                    print(self.special)
                 except KeyError:
                     self.vars[self.scope] = [self.current_token[1]]
+                    self.special["__name__"] = self.current_token[1]
+                    print(self.special)
             if self.current_token[1] in self.vars.keys() and self.current_token[1] != "global":
                 scope = copy.deepcopy(self.current_token[1])
                 self.next_token()
@@ -533,7 +623,8 @@ class GraphLangInterpreter:
                 self.parse_value()
                 self.scope = "global"
                 return True
-            if self.current_token[1] not in self.vars[self.scope] and self.current_token[1] not in self.constants:
+
+            elif self.current_token[1] not in self.vars[self.scope] and self.current_token[1] not in (self.constants):
                 self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
 
             self.location[-1]["latex"] += self.subscriptify(
