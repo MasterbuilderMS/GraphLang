@@ -1,0 +1,19 @@
+macro Rectangle!(__name__){
+    ns {__name__} {
+        width = 1
+        height = 1
+        positionx = 0
+        y = 0
+        polygon((positionx-(width/2), y-(height/2)), (positionx+(width/2), y-(height/2)), (positionx+(width/2), y+(height/2)), (positionx-(width/2), y+(height/2)))
+    }
+}
+
+macro triangle!(__name__){
+    ns {__name__} {
+        width = 1
+        height = 1
+        positionx = 0
+        y = 0
+        polygon((positionx-(width/2), y), (positionx, y-(height/2)), (positionx+(width/2), y))
+    }
+}
