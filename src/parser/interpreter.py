@@ -60,7 +60,7 @@ class GraphLangInterpreter:
         self.constants = ["X", "Y", "x", "y"]  # variables allowed by desmos
         self.expression_template = None
         self.note_template = None
-        self.scope = "global"
+        self.scope = ["global"]  # list of scopes that can be accessed
         self.location = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
         self.builtins = ["hsv", "rgb", "sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
@@ -331,7 +331,7 @@ class GraphLangInterpreter:
         self.next_token()
         if self.current_token[0] != "identifier":
             self.raise_error("Expected identifier")
-        self.scope = self.current_token[1]
+        self.scope.append(self.current_token[1])
         self.location[-1]["title"] = self.current_token[1]
         self.folder_id = str(self.expression_id)
         self.next_token()
@@ -342,10 +342,12 @@ class GraphLangInterpreter:
             while self.current_token[1] != "}":
                 if not self.parse_statement():
                     self.raise_error("Expected Statement inside namespace")
+                while self.current_token[0] in ["line", "comment"]:
+                    self.next_token()
         except TypeError:
             pass
         self.folder_id = 0
-        self.scope = "global"
+        self.scope.pop()
         return True
 
     def parse_function(self):
@@ -370,7 +372,7 @@ class GraphLangInterpreter:
             self.raise_error("Expected function name after defintion")
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
-        self.scope = self.current_token[1]
+        self.scope.append(self.current_token[1])
         self.functions.append(self.current_token[1])
         self.next_token()
         if self.current_token[1] != "(":
@@ -408,7 +410,7 @@ class GraphLangInterpreter:
             self.next_token()
         if self.current_token[1] != "}":
             self.raise_error("'}' was not closed")
-        self.scope = "global"
+        self.scope.pop()
         return True
 
     def parse_expression(self):  # x + 1
@@ -419,8 +421,6 @@ class GraphLangInterpreter:
             bool: True if the expression was parsed successfully, False otherwise.
         """
 
-        if self.current_token[1] == "PolygonAverageDist":
-            pass
         # check if it is a point first:
         # safety in case it isn't a point so we can jump back here
         return_latex = copy.deepcopy(self.location[-1]["latex"])
@@ -617,11 +617,11 @@ class GraphLangInterpreter:
             # define variable
             if self.location[-1]["latex"] == "" and self.tokens[self.position + 1][1] == "=":
                 try:
-                    self.vars[self.scope] += [self.current_token[1]]
+                    self.vars[self.scope[-1]] += [self.current_token[1]]
                     self.special["__name__"] = self.current_token[1]
                     print(self.special)
                 except KeyError:
-                    self.vars[self.scope] = [self.current_token[1]]
+                    self.vars[self.scope[-1]] = [self.current_token[1]]
                     self.special["__name__"] = self.current_token[1]
                     print(self.special)
             if self.current_token[1] in self.vars.keys() and self.current_token[1] != "global":
@@ -630,13 +630,13 @@ class GraphLangInterpreter:
                 if self.current_token[1] != ".":
                     self.raise_error("expected '.'")
                 self.next_token()
-                self.scope = scope
+                self.scope.append(scope)
                 self.parse_value()
-                self.scope = "global"
+                self.scope.pop()
                 return True
 
-            elif self.current_token[1] not in self.vars[self.scope] and self.current_token[1] not in (self.constants):
-                self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
+            elif self.current_token[1] not in [scope for scope in self.vars.values()] and self.current_token[1] not in (self.constants):
+               self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
 
             self.location[-1]["latex"] += self.subscriptify(
                 self.scope + str(self.current_token[1]))
