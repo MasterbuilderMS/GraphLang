@@ -636,7 +636,7 @@ class GraphLangInterpreter:
                 return True
 
             elif self.current_token[1] not in [scope for scope in self.vars.values()] and self.current_token[1] not in (self.constants):
-               self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
+                self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
 
             self.location[-1]["latex"] += self.subscriptify(
                 self.scope + str(self.current_token[1]))
