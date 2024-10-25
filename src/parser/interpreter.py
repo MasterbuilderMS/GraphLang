@@ -338,14 +338,14 @@ class GraphLangInterpreter:
         if self.current_token[1] != "{":
             self.raise_error("Expected { after namespace definition")
         self.next_token()
-        try:
-            while self.current_token[1] != "}":
-                if not self.parse_statement():
-                    self.raise_error("Expected Statement inside namespace")
-                while self.current_token[0] in ["line", "comment"]:
-                    self.next_token()
-        except TypeError:
-            pass
+        # try:
+        while self.current_token[1] != "}":
+            if not self.parse_statement():
+                self.raise_error("Expected Statement inside namespace")
+            while self.current_token[0] in ["line", "comment"]:
+                self.next_token()
+        # except TypeError:
+         #   pass
         self.folder_id = 0
         self.scope.pop()
         return True
@@ -363,6 +363,7 @@ class GraphLangInterpreter:
         Finally, it resets the scope back to "global" and returns True.
 
         Returns True if the function was parsed successfully, False otherwise.
+
         """
 
         if self.current_token[1] != "fn":
@@ -373,6 +374,7 @@ class GraphLangInterpreter:
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
         self.scope.append(self.current_token[1])
+        self.vars[self.current_token[1]] = []
         self.functions.append(self.current_token[1])
         self.next_token()
         if self.current_token[1] != "(":
@@ -381,12 +383,8 @@ class GraphLangInterpreter:
         while self.current_token[1] != ")":
             if self.current_token[0] != "identifier":
                 self.raise_error("Expected parameter")
-            self.location[-1]["latex"] += self.subscriptify(
-                self.scope + self.current_token[1])
-            try:
-                self.vars[self.scope] += [self.current_token[1]]
-            except KeyError:
-                self.vars[self.scope] = [self.current_token[1]]
+            self.location[-1]["latex"] += self.subscriptify(self.scope[-1] + self.current_token[1])  # nopep8
+            self.vars[self.scope[-1]].append(self.current_token[1])
             self.next_token()
             if self.current_token[1] == ")":
                 self.location[-1]["latex"] += r"\right)"
@@ -635,11 +633,12 @@ class GraphLangInterpreter:
                 self.scope.pop()
                 return True
 
-            elif self.current_token[1] not in [scope for scope in self.vars.values()] and self.current_token[1] not in (self.constants):
+            elif all(self.current_token[1] not in scope for scope in self.vars.values()) and self.current_token[1] not in (self.constants):
                 self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
 
             self.location[-1]["latex"] += self.subscriptify(
-                self.scope + str(self.current_token[1]))
+                self.scope[-1] + str(self.current_token[1]))
+            print(self.scope)
         else:
             self.location[-1]["latex"] += str(self.current_token[1])  # nopep8
         self.next_token()
