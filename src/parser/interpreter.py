@@ -30,7 +30,7 @@ class GraphLangInterpreter:
     def __init__(self, code):
         self.code: str = code
         self.tokens: list = []
-        self.vars: dict = {"global": []}  # dict of variables
+        self.vars: dict[list[dict]] = {"global": {}}
         self.line_nr: int = 0
         self.output: dict = {}
         self.expression_id: int = 0
@@ -46,9 +46,7 @@ class GraphLangInterpreter:
             ("comment", r"#.*"),
             ("line", r"\n")
         ]
-
         self.position = 0
-
         self.tokens = self.lex(self.code)
         self.position = 0
         self.lines = self.code.splitlines()
@@ -60,7 +58,6 @@ class GraphLangInterpreter:
         self.constants = ["X", "Y", "x", "y"]  # variables allowed by desmos
         self.expression_template = None
         self.note_template = None
-        self.scope = ["global"]  # list of scopes that can be accessed
         self.location = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
         self.builtins = ["hsv", "rgb", "sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arcos", "arctangent", "arccosecant", "arcsecant", "arccotangent", "mean", "median", "min", "max", "quartile", "quantile", "stdev", "stdevp", "varp",
@@ -68,6 +65,7 @@ class GraphLangInterpreter:
         self.functions = []  # user functions
         self.macros: list[dict[str:str, str:str]] = []  # user-defined macros
         self.special = {"__name__": ""}  # special variables
+        self.scope_path = ["global",]
     # lexer
 
     def lex(self, code):
@@ -179,6 +177,7 @@ class GraphLangInterpreter:
             return text
         else:
             return f"{text[0]}_{{{text[1:]}}}"
+
     # ====== Parsing statements ========
     # functions for checking that each token conforms with the grammar
     # each function returns true or false
@@ -277,14 +276,15 @@ class GraphLangInterpreter:
         if self.current_token[1] != "import":
             return False
         self.next_token()
+        self.vars[self.current_token[1]] = {}
         imported = ""
         try:
             with open((".\\" + self.current_token[1]) + ".graphlang", "r") as f:
-                self.next_token()
-                self.next_token()
-                self.next_token()
+                self.next_token()  # skip import
+                self.next_token()  # skip name
+                self.next_token()  # move onto next token
                 imported = f.read()
-                [self.tokens.insert(self.position+1, i) for i in reversed(self.lex(imported))]  # nopep8
+                [self.tokens.insert(self.position+1, i) for i in [reversed([("line", "\n"), ("punctuation", "}")] + self.lex(imported) + [("punctuation", "}"), ("identifier", self.current_token[1]), ("keyword", "ns")])]]  # nopep8
                 self.code = ''.join([str(token[1]) for token in self.tokens])
                 self.lines = self.code.splitlines()
         except FileNotFoundError:
@@ -331,23 +331,25 @@ class GraphLangInterpreter:
         self.next_token()
         if self.current_token[0] != "identifier":
             self.raise_error("Expected identifier")
-        self.scope.append(self.current_token[1])
+        # new scope folder
+        self.vars[self.scope] += {self.current_token[1]: {}}
+        self.scope = self.current_token[1]
         self.location[-1]["title"] = self.current_token[1]
         self.folder_id = str(self.expression_id)
         self.next_token()
         if self.current_token[1] != "{":
             self.raise_error("Expected { after namespace definition")
         self.next_token()
-        # try:
-        while self.current_token[1] != "}":
-            if not self.parse_statement():
-                self.raise_error("Expected Statement inside namespace")
-            while self.current_token[0] in ["line", "comment"]:
-                self.next_token()
-        # except TypeError:
-         #   pass
+        try:
+            while self.current_token[1] != "}":
+                if not self.parse_statement():
+                    self.raise_error("Expected Statement inside namespace")
+                while self.current_token[0] in ["line", "comment"]:
+                    self.next_token()
+        except TypeError:
+            pass
         self.folder_id = 0
-        self.scope.pop()
+        self.scope = "global"
         return True
 
     def parse_function(self):
@@ -373,7 +375,10 @@ class GraphLangInterpreter:
             self.raise_error("Expected function name after defintion")
         self.location[-1]["latex"] += self.subscriptify(self.current_token[1])
         self.location[-1]["latex"] += r"\left("
-        self.scope.append(self.current_token[1])
+        try:
+            self.vars[self.scope] += {self.current_token[1]: {}}
+        except KeyError:
+            pass
         self.vars[self.current_token[1]] = []
         self.functions.append(self.current_token[1])
         self.next_token()
@@ -383,8 +388,8 @@ class GraphLangInterpreter:
         while self.current_token[1] != ")":
             if self.current_token[0] != "identifier":
                 self.raise_error("Expected parameter")
-            self.location[-1]["latex"] += self.subscriptify(self.scope[-1] + self.current_token[1])  # nopep8
-            self.vars[self.scope[-1]].append(self.current_token[1])
+            self.location[-1]["latex"] += self.subscriptify([][-1] + self.current_token[1])  # nopep8
+            self.vars[[][-1]].append(self.current_token[1])
             self.next_token()
             if self.current_token[1] == ")":
                 self.location[-1]["latex"] += r"\right)"
@@ -408,7 +413,7 @@ class GraphLangInterpreter:
             self.next_token()
         if self.current_token[1] != "}":
             self.raise_error("'}' was not closed")
-        self.scope.pop()
+        [].pop()
         return True
 
     def parse_expression(self):  # x + 1
@@ -483,10 +488,10 @@ class GraphLangInterpreter:
             if self.current_token[0] != "identifier" and self.current_token[1] not in ["__name__"]:
                 self.raise_error("Expected parameter")
             try:
-                self.vars[self.scope] += [self.current_token[1]]
+                self.vars[[]] += [self.current_token[1]]
                 self.macros[-1]["args"] += [self.current_token[1]]
             except KeyError:
-                self.vars[self.scope] = [self.current_token[1]]
+                self.vars[[]] = [self.current_token[1]]
                 self.macros[-1]["args"] += [self.current_token[1]]
             self.next_token()
             if self.current_token[1] == ")":
@@ -615,11 +620,11 @@ class GraphLangInterpreter:
             # define variable
             if self.location[-1]["latex"] == "" and self.tokens[self.position + 1][1] == "=":
                 try:
-                    self.vars[self.scope[-1]] += [self.current_token[1]]
+                    self.vars[[][-1]] += [self.current_token[1]]
                     self.special["__name__"] = self.current_token[1]
                     print(self.special)
                 except KeyError:
-                    self.vars[self.scope[-1]] = [self.current_token[1]]
+                    self.vars[[][-1]] = [self.current_token[1]]
                     self.special["__name__"] = self.current_token[1]
                     print(self.special)
             if self.current_token[1] in self.vars.keys() and self.current_token[1] != "global":
@@ -628,17 +633,17 @@ class GraphLangInterpreter:
                 if self.current_token[1] != ".":
                     self.raise_error("expected '.'")
                 self.next_token()
-                self.scope.append(scope)
+                [].append(scope)
                 self.parse_value()
-                self.scope.pop()
+                [].pop()
                 return True
 
             elif all(self.current_token[1] not in scope for scope in self.vars.values()) and self.current_token[1] not in (self.constants):
                 self.raise_error(f"Variable {self.current_token[1]} not defined")  # nopep8
 
             self.location[-1]["latex"] += self.subscriptify(
-                self.scope[-1] + str(self.current_token[1]))
-            print(self.scope)
+                [][-1] + str(self.current_token[1]))
+            print([])
         else:
             self.location[-1]["latex"] += str(self.current_token[1])  # nopep8
         self.next_token()
@@ -714,4 +719,4 @@ Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" +
         print(colors.RED + '''Failed to start compilation. Are you sure the file exists?''' + colors.END
               )
         exit()
-    os.system("pause")
+        os.system("pause")
