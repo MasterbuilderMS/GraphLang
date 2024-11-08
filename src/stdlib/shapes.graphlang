@@ -1,0 +1,10 @@
+macro Rectangle!(__name__){
+    ns {__name__} {
+        width = 1
+        height = 1
+        positionx = 0
+        positiony = 0
+        polygon((positionx-(width/2), positiony-(height/2)), (positionx+(width/2), positiony-(height/2)), (positionx+(width/2), positiony+(height/2)), (positionx-(width/2), positiony+(height/2)))
+        move = positionx -> positionx + 1
+    }
+}

@@ -382,6 +382,32 @@ class GraphLangInterpreter:
             current_scope = current_scope[scope]
             checking.append(name in current_scope)
         return any(checking)
+
+    def open_import(self, path, module_name):
+        with open(path, "r", encoding="utf-8") as module:
+            self.next_token()  # skip import
+            self.next_token()  # skip name
+            self.next_token()  # move onto next token
+            imported = module.read()
+            tokens_to_insert = [
+                ("keyword", "ns"),
+                ("identifier", module_name),
+                ("punctuation", "{"),
+                ("line", "\n")
+            ] + self.lex(imported) + [
+                ("line", "\n"),
+                ("punctuation", "}")
+            ]
+
+            # Reverse the list for the insertion order
+            tokens_to_insert = list(reversed(tokens_to_insert))
+
+# Insert each token at the specified position
+            for token in tokens_to_insert:
+                self.tokens.insert(self.position + 1, token)
+
+            self.code = ' '.join([str(token[1]) for token in self.tokens])
+            self.lines = self.code.splitlines()
     # ====== Parsing statements ========
     # functions for checking that each token conforms with the grammar
     # each function returns true or false
@@ -491,33 +517,17 @@ class GraphLangInterpreter:
         self.next_token()
         module_name = copy.deepcopy(self.current_token[1])
         imported = ""
+        stdlib_path = os.path.join(os.path.dirname(
+            __file__), "..", "stdlib", self.current_token[1] + ".graphlang")
         try:
-            with open((".\\" + self.current_token[1]) + ".graphlang", "r", encoding="utf-8") as module:
-                self.next_token()  # skip import
-                self.next_token()  # skip name
-                self.next_token()  # move onto next token
-                imported = module.read()
-                tokens_to_insert = [
-                    ("keyword", "ns"),
-                    ("identifier", module_name),
-                    ("punctuation", "{"),
-                    ("line", "\n")
-                ] + self.lex(imported) + [
-                    ("line", "\n"),
-                    ("punctuation", "}")
-                ]
-
-                # Reverse the list for the insertion order
-                tokens_to_insert = list(reversed(tokens_to_insert))
-
-# Insert each token at the specified position
-                for token in tokens_to_insert:
-                    self.tokens.insert(self.position + 1, token)
-
-                self.code = ' '.join([str(token[1]) for token in self.tokens])
-                self.lines = self.code.splitlines()
+            self.open_import(
+                ".\\" + self.current_token[1] + ".graphlang", module_name=module_name)
         except FileNotFoundError:
-            self.raise_error("File not found")
+            try:
+                self.open_import(stdlib_path,
+                                 module_name=module_name)
+            except FileNotFoundError:
+                print("file not found")
         return True
 
     def parse_note(self):
