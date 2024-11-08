@@ -33,7 +33,7 @@ Currently working on a proper scoping system. Will take a while, and so no updat
    - [x] function calls and scoping system
 ## v3.0
    - [x] Macros?
-   - [ ] Proper scoping system
+   - [x] Proper scoping system
 ## v4.0+
    - [ ] expression evaluation e.g. 1+1 ---> 2
    - [ ] Further desmos abstraction: make desmos more similar to other languages
