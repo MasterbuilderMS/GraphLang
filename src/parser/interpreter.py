@@ -113,7 +113,7 @@ class GraphLangInterpreter:
         self.expression_id: int = 0
         self.folder_id: int = 0
         self.token_patterns: list[tuple[str, str]] = [
-            ("keyword", r"fn|ns|if|for|macro|import"),
+            ("keyword", r"\b(fn|ns|if|for|macro|import)\b"),
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
             ("literal", r"\d+"),
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;\!]"),
@@ -470,6 +470,7 @@ class GraphLangInterpreter:
         if not self.parse_statement():
             self.raise_error("Expected statement")
         # until end of program
+
         while self.current_token is not None:
             if self.current_token[0] != "line":
                 if not self.parse_statement():
@@ -494,7 +495,10 @@ class GraphLangInterpreter:
         """
         if self.current_token is None:  # if there is no statement, return true
             return True
-        while self.current_token[0] == "line":  # skip through extra lines
+        while self.current_token[0] == "line":
+            if self.tokens[self.position + 1] is None:
+                return True
+            # skip through extra lines
             self.next_token()
         self.location: list = self.output["expressions"]["list"]
         self.location.append(copy.deepcopy(self.expression_template))
@@ -933,8 +937,8 @@ class GraphLangInterpreter:
         """
         if self.current_token[1] not in self.functions and self.current_token[1] not in self.builtins:
             return False
-        if self.current_token[1] == "polygon":
-            self.location[-1]["latex"] += "\\operatorname{polygon}" + "\\left("  # nopep8
+        if self.current_token[1] in ["polygon", "rgb", "hsv"]:
+            self.location[-1]["latex"] += "\\operatorname{" + self.current_token[1] + "}" + "\\left("  # nopep8
         elif self.current_token[1] in self.functions:
             self.location[-1]["latex"] += self.subscriptify(self.current_token[1]) + "\\left("  # nopep8
         else:
