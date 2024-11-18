@@ -19,21 +19,19 @@ Programming language written for desmos
  - Lists `[1,2,3,4]` (list comprehension soon)
  - Many desmos functions, e.g. sin, cos , tan
  - polygons
+ - Pre-compilation variable checking
+ - Namespace dot notation
+ - Proper scoping sytem
+ - Function calls
+ - Macros
+ - Imports from other graphlang files
+ - Beginings of a stdlib
 
-
-
-
-# Development
-Currently working on a proper scoping system. Will take a while, and so no updates. 
-
-## v2.0:
-   - [x] Pre-compilation variable checking 
-   - [x] Mainly focused on improving errors, and error-catching
-   - [x] Possibly add namespace dot notation to access variables inside namespaces
-   - [x] function calls and scoping system
 ## v3.0
-   - [x] Macros?
-   - [x] Proper scoping system
+ - [ ] Waaaaay better error messages
+ - [ ] Conditional statements
+ - [ ] List comp
+ - [ ] Bug fixes
 ## v4.0+
    - [ ] expression evaluation e.g. 1+1 ---> 2
    - [ ] Further desmos abstraction: make desmos more similar to other languages
