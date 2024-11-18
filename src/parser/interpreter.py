@@ -113,7 +113,7 @@ class GraphLangInterpreter:
         self.expression_id: int = 0
         self.folder_id: int = 0
         self.token_patterns: list[tuple[str, str]] = [
-            ("keyword", r"\b(fn|ns|if|for|macro|import)\b"),
+            ("keyword", r"\b(fn|ns|if|else|for|macro|import)\b"),
             ("identifier", r"[A-Za-z_][A-Za-z0-9_]*"),
             ("literal", r"\d+"),
             ("punctuation", r"[\{\}\[\]\(\)\.\,\;\!]"),
@@ -123,44 +123,44 @@ class GraphLangInterpreter:
             ("comment", r"#.*"),
             ("line", r"\n")
         ]
-        self.position = 0
-        self.tokens = self.lex(self.code)
-        self.position = 0
-        self.lines = self.code.splitlines()
+        self.position: int = 0
+        self.tokens: list[tuple[str, str]] = self.lex(self.code)
+        self.position: int = 0
+        self.lines: list[str] = self.code.splitlines()
         try:
             self.current_token: tuple = self.tokens[0]
         except IndexError:
-            self.current_token = None
+            self.current_token: None = None
 
         self.expression_template = None
         self.note_template = None
         self.folder_template = None
-        self.location = 0
+        self.location: int = 0
         self.tokens.append(("line", "\n"))  # append an item to fix parsing
-        self.builtins = ["hsv", "rgb",  # colors
-                         "sin", "cos", "tan",  # trigonometry
-                         "csc", "sec", "cot",  # 1/trig
-                         "arcsin", "arcos", "arctangent",  # trig^-1
-                         "arccosecant", "arcsecant", "arccotangent",  # 1/trig^-1
-                         "mean", "median",  # averages
-                         "min", "max", "quartile", "quantile",  # stuff
-                         "stdev", "stdevp", "varp",  # Literally no clue what these do
-                         "mad", "cov", "covp", "corr",  # same here
-                         "spearman", "stats", "count", "total",  # same here
-                         "join", "sort", "shuffle", "unique",  # list operations
-                         "histogram", "dotplot", "boxplot",  # plots
-                         "random",  # duh
-                         "exp", "ln", "log", "int",  # exponential
-                         "sum", "prod",  # sum and product
-                         "tone",  # tone
-                         "lcm", "sqrt", "polygon"]  # random stuff
-        self.functions = []
+        self.builtins: list[str] = ["hsv", "rgb",  # colors
+                                    "sin", "cos", "tan",  # trigonometry
+                                    "csc", "sec", "cot",  # 1/trig
+                                    "arcsin", "arcos", "arctangent",  # trig^-1
+                                    "arccosecant", "arcsecant", "arccotangent",  # 1/trig^-1
+                                    "mean", "median",  # averages
+                                    "min", "max", "quartile", "quantile",  # stuff
+                                    "stdev", "stdevp", "varp",  # Literally no clue what these do
+                                    "mad", "cov", "covp", "corr",  # same here
+                                    "spearman", "stats", "count", "total",  # same here
+                                    "join", "sort", "shuffle", "unique",  # list operations
+                                    "histogram", "dotplot", "boxplot",  # plots
+                                    "random",  # duh
+                                    "exp", "ln", "log", "int",  # exponential
+                                    "sum", "prod",  # sum and product
+                                    "tone",  # tone
+                                    "lcm", "sqrt", "polygon"]  # random stuff
+        self.functions: list = []
         self.macros: list[dict[str:str, str:str]] = []  # user-defined macros
-        self.special = {"__name__": ""}  # special variables
-        self.scope_path = []
+        self.special: dict[str, str] = {"__name__": ""}  # special variables
+        self.scope_path: list[str] = []
     # lexer
 
-    def lex(self, code):
+    def lex(self, code: str):
         """
         Lexes the code and adds tokens to self.tokens.
 
@@ -168,7 +168,7 @@ class GraphLangInterpreter:
         -------
         Tokens
         """
-        starting_position = copy.deepcopy(self.position)
+        starting_position: int = copy.deepcopy(self.position)
         self.position = 0
         tokens = []
         token_regex = '|'.join(
@@ -186,6 +186,7 @@ class GraphLangInterpreter:
                 tokens.append((token_type, value))
             self.position = matcher.end()
             matcher = re.compile(token_regex).match(code, self.position)
+        # if we have stopped before the end of the code
         try:
             if self.position != len(code):
                 self.raise_error(
@@ -270,7 +271,7 @@ class GraphLangInterpreter:
         except IndexError:
             self.current_token = None
 
-    def peek_token(self, num):
+    def peek_token(self, num: int) -> tuple[str, str] | None:
         """looks ahead at the next token
 
         Arguments:
@@ -283,6 +284,10 @@ class GraphLangInterpreter:
             return self.tokens[self.position + num]
         except IndexError:
             return None
+
+    def skip_lines(self) -> None:
+        while self.current_token[0] == "line":
+            self.next_token()
 
     def subscriptify(self, text):
         """
@@ -383,6 +388,22 @@ class GraphLangInterpreter:
             checking.append(name in current_scope)
         return any(checking)
 
+    def end_safely(func):
+        '''
+        Decorator that ends the program safely, rather than raising a TypeError due to 
+        self.current token being None
+        '''
+        def wrapper(*args, **kwargs):
+            try:
+                func(*args, **kwargs)
+            except TypeError:
+                if func.current_token is None:
+                    pass
+                else:
+                    raise TypeError
+
+        return wrapper
+
     def open_import(self, path, module_name):
         with open(path, "r", encoding="utf-8") as module:
             self.next_token()  # skip import
@@ -467,8 +488,6 @@ class GraphLangInterpreter:
         }
         # print(self.current_token)
         self.position = 0
-        if not self.parse_statement():
-            self.raise_error("Expected statement")
         # until end of program
 
         while self.current_token is not None:
@@ -482,7 +501,7 @@ class GraphLangInterpreter:
                     pass
     # substatement checks if the statement is inside a function
 
-    def parse_statement(self):
+    def parse_statement(self, mkline=True):
         """
         parse_statement parses a single statement in the language. 
         It first skips through lines and then adds a new expression to the output. 
@@ -496,19 +515,117 @@ class GraphLangInterpreter:
         if self.current_token is None:  # if there is no statement, return true
             return True
         while self.current_token[0] == "line":
-            if self.tokens[self.position + 1] is None:
-                return True
             # skip through extra lines
             self.next_token()
-        self.location: list = self.output["expressions"]["list"]
-        self.location.append(copy.deepcopy(self.expression_template))
+        # if we need to make a new line, then append a new expression to the list. Otherwise, self.location stays the same
+        if mkline == True:
+            self.location: list = self.output["expressions"]["list"]
+            self.location.append(copy.deepcopy(self.expression_template))
         self.expression_id += 1
         self.location[-1]["id"] = self.expression_id
         self.location[-1]["folderId"] = self.folder_id
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro() and not self.parse_import():
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro() and not self.parse_import() and not self.parse_if():
             self.raise_error("Expected statement")
         self.next_token()
         return True
+
+    def parse_if(self):
+        if self.current_token[1] != "if":
+            return False
+        self.next_token()
+
+        self.location[-1]["latex"] += "\\left\\{"
+        # parse a value
+        self.parse_condition()
+        if self.current_token[1] != "{":
+            self.raise_error("Expected {")
+        self.next_token()
+        self.location[-1]["latex"] += ":"
+        while self.current_token[1] == "\n":
+            self.next_token()
+        if not self.parse_value():
+            self.raise_error("If branches must be values")
+        while self.current_token[1] == "\n":
+            self.next_token()
+        if self.current_token[1] != "}":
+            self.raise_error("Expected }")
+        self.next_token()
+        try:
+            if self.current_token[1] == "elif":
+                self.location[-1]["latex"] += ","
+                self.parse_elif()
+            elif self.current_token[1] == "else":
+                self.location[-1]["latex"] += ","
+                self.parse_else()
+        except TypeError:
+            pass
+        self.location[-1]["latex"] += "\\right\\}"
+
+        return True
+
+    def parse_elif(self):
+        if self.current_token[1] != "elif":
+            return False
+        self.next_token()
+        self.parse_condition()
+        if self.current_token[1] != "{":
+            self.raise_error("Expected {")
+        self.next_token()
+        self.location[-1]["latex"] += ":"
+        while self.current_token[1] == "\n":
+            self.next_token()
+        if not self.parse_value():
+            self.raise_error("If branches must be values")
+        while self.current_token[1] == "\n":
+            self.next_token()
+        if self.current_token[1] != "}":
+            self.raise_error("Expected }")
+        self.next_token()
+        try:
+            if self.current_token[1] == "elif":
+                self.location[-1]["latex"] += ","
+                self.parse_elif()
+            elif self.current_token[1] == "else":
+                self.location[-1]["latex"] += ","
+                self.parse_else()
+        except TypeError:
+            pass
+        return True
+
+    def parse_else(self):
+        if self.current_token[1] != "else":
+            return False
+        self.next_token()
+        if self.current_token[1] != "{":
+            self.raise_error("Expected {")
+        self.next_token()
+        while self.current_token[1] == "\n":
+            self.next_token()
+        if not self.parse_value():
+            self.raise_error("If branches must be values")
+        while self.current_token[1] == "\n":
+            self.next_token()
+        if self.current_token[1] != "}":
+            self.raise_error("Expected }")
+        self.next_token()
+        return True
+
+    def parse_condition(self):
+        '''
+        Parses a condition of an if statement:
+        e.g. x < 1
+        Just to be clear, it doesn't actually evaluated the condition, it just hands it to desmos
+        '''
+        if not self.parse_value():
+            self.raise_error("Expected value")
+        # valid operator types for if conditionals
+        if self.current_token[1] not in ["<", ">", "==", "<=", ">=", "!="]:
+            self.raise_error(f"Unexpected operator type for if: {self.current_token[1]}")  # nopep8
+        self.location[-1]["latex"] += self.current_token[1]
+        conditional = copy.deepcopy(self.current_token[1])
+        self.next_token()
+        if not self.parse_value():
+            self.raise_error(f"Expected value after {conditional}")
 
     def parse_import(self):
         """Parses an import statement - copies tokens into list
@@ -602,6 +719,17 @@ class GraphLangInterpreter:
         except TypeError:
             pass
         self.scope_path.pop()
+        self.next_token()
+        return True
+
+    def parse_block(self):
+        if self.current_token[1] != "{":
+            return False
+        self.next_token()
+        while self.current_token[1] != "}":
+            self.parse_statement(mkline=False)
+        if self.current_token[1] != "}":
+            self.raise_error("Expected }")
         self.next_token()
         return True
 
@@ -717,7 +845,7 @@ class GraphLangInterpreter:
                 self.parse_expression()
 
         else:
-            if not self.parse_function_call() and not self.parse_macro_call() and not self.parse_value() and not self.parse_list() and not self.parse_point() and not self.parse_comprehension():
+            if not self.parse_function_call() and not self.parse_macro_call() and not self.parse_value() and not self.parse_list() and not self.parse_point() and not self.parse_comprehension() and not self.parse_block():
                 return False
             if self.parse_operator():
                 self.parse_expression()
@@ -1077,7 +1205,7 @@ Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" +
                 print(colors.GREEN + "Compiling" + ("............."*i) + colors.END)  # nopep8
                 time.sleep(0.001)
 
-            _ = GraphLangInterpreter(text_code, debug=True)
+            _ = GraphLangInterpreter(text_code, debug=False)
             _.run()
     except FileNotFoundError:
         print(colors.RED +
