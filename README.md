@@ -29,7 +29,7 @@ Programming language written for desmos
 
 ## v3.0
  - [ ] Waaaaay better error messages
- - [ ] Conditional statements
+ - [x] Conditional statements
  - [ ] List comp
  - [ ] Bug fixes
 ## v4.0+
