@@ -26,6 +26,7 @@ Programming language written for desmos
  - Macros
  - Imports from other graphlang files
  - Beginings of a stdlib
+ - Conditional statements
 
 ## v3.0
  - [ ] Waaaaay better error messages
