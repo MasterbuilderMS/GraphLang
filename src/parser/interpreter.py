@@ -160,7 +160,7 @@ class GraphLangInterpreter:
         self.scope_path: list[str] = []
     # lexer
 
-    def lex(self, code: str):
+    def lex(self, code: str) -> list[tuple[str, str]]:
         """
         Lexes the code and adds tokens to self.tokens.
 
@@ -201,7 +201,7 @@ class GraphLangInterpreter:
     # functions that are used to navigate the token list,
     # control the stack, and raise errors
 
-    def run(self):
+    def run(self) -> None:
         """Run the interpreter, lexing, parsing, evaluating, and copying output to the clipboard."""
         # setup exception handling hook
 
@@ -228,9 +228,9 @@ class GraphLangInterpreter:
             data = json.dumps(self.output)
             pyperclip.copy(data)
             print("Copied: ", data)
-            print(self.macros)
+            os.system("pause")
 
-    def raise_error(self, message):
+    def raise_error(self, message: str) -> None:
         """
         Raise an error with the given message, including the line number and code above it
 
@@ -241,7 +241,7 @@ class GraphLangInterpreter:
 
     # get the next token
 
-    def next_token(self):
+    def next_token(self) -> tuple[str, str] | None:
         """
         Get the next token from the token list, 
         incrementing the line number if the current token is a newline.
@@ -289,7 +289,7 @@ class GraphLangInterpreter:
         while self.current_token[0] == "line":
             self.next_token()
 
-    def subscriptify(self, text):
+    def subscriptify(self, text: str):
         """
         This function converts the given text into a subscript format 
         if the text length is greater than 1.
@@ -304,14 +304,12 @@ class GraphLangInterpreter:
             return text
         return f"{text[0]}_{{{text[1:]}}}"
 
-    def get_variables(self, scope_path):
+    def get_variables(self, scope_path: str):
         # scope path is a list of scope to get to the variable we want
         """
         Retrieves a variable from the given scope path.
-
         Parameters:
             scope_path (list): The list of scopes to get to the variable.
-
         Returns:
             dict: The variable's dictionary.
         """
@@ -321,7 +319,7 @@ class GraphLangInterpreter:
             variables = copy.deepcopy(variables[scope])
         return variables
 
-    def set_variables(self, scope_path):
+    def set_variables(self, scope_path: str) -> None:
         # scope path is a list of scope to get to the variable we want
         """
         Retrieves a variable from the given scope path and can edit it
@@ -338,7 +336,7 @@ class GraphLangInterpreter:
             variables = variables[scope]
         return variables
 
-    def add_variable(self, scope_path, name, value):
+    def add_variable(self, scope_path: str, name: str, value) -> None:
         """
         Adds a variable to the given scope path.
 
@@ -358,7 +356,7 @@ class GraphLangInterpreter:
 
         current_scope[name] = value
 
-    def check_variable(self, scope_path: str, name):
+    def check_variable(self, scope_path: str, name: str) -> bool:
         """
         Checks if a variable exists in the given scope path.
         If it
@@ -404,7 +402,7 @@ class GraphLangInterpreter:
 
         return wrapper
 
-    def open_import(self, path, module_name):
+    def open_import(self, path: str, module_name: str):
         with open(path, "r", encoding="utf-8") as module:
             self.next_token()  # skip import
             self.next_token()  # skip name
@@ -433,7 +431,7 @@ class GraphLangInterpreter:
     # functions for checking that each token conforms with the grammar
     # each function returns true or false
 
-    def parse_program(self):
+    def parse_program(self) -> bool:
         """
         parse_program is the top-level parsing function. It parses a complete program
         into a JSON object that is compatible with Graphing Calculator's data format.
@@ -449,6 +447,8 @@ class GraphLangInterpreter:
 
         :return: None
         """
+        # templates for each expression type
+        # copied when needed
         self.expression_template = {
             "type": "expression",
             "id": 1,
@@ -499,9 +499,8 @@ class GraphLangInterpreter:
                     self.parse_statement()
                 except TypeError:
                     pass
-    # substatement checks if the statement is inside a function
 
-    def parse_statement(self, mkline=True):
+    def parse_statement(self, mkline: bool = True) -> bool:
         """
         parse_statement parses a single statement in the language. 
         It first skips through lines and then adds a new expression to the output. 
@@ -524,18 +523,16 @@ class GraphLangInterpreter:
         self.expression_id += 1
         self.location[-1]["id"] = self.expression_id
         self.location[-1]["folderId"] = self.folder_id
-        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro() and not self.parse_import() and not self.parse_if():
+        if not self.parse_namespace() and not self.parse_function() and not self.parse_expression() and not self.parse_note() and not self.parse_macro() and not self.parse_import() and not self.parse_if() and not self.parse_for():
             self.raise_error("Expected statement")
         self.next_token()
         return True
 
-    def parse_if(self):
+    def parse_if(self) -> bool:
         if self.current_token[1] != "if":
             return False
         self.next_token()
-
         self.location[-1]["latex"] += "\\left\\{"
-        # parse a value
         self.parse_condition()
         if self.current_token[1] != "{":
             self.raise_error("Expected {")
@@ -563,7 +560,7 @@ class GraphLangInterpreter:
 
         return True
 
-    def parse_elif(self):
+    def parse_elif(self) -> bool:
         if self.current_token[1] != "elif":
             return False
         self.next_token()
@@ -592,7 +589,7 @@ class GraphLangInterpreter:
             pass
         return True
 
-    def parse_else(self):
+    def parse_else(self) -> bool:
         if self.current_token[1] != "else":
             return False
         self.next_token()
@@ -607,6 +604,39 @@ class GraphLangInterpreter:
             self.next_token()
         if self.current_token[1] != "}":
             self.raise_error("Expected }")
+        self.next_token()
+        return True
+
+    def parse_for(self) -> bool:
+        if self.current_token[1] != "for":
+            return False
+        self.next_token()
+        if self.current_token[0] != "identifier":
+            self.raise_error(f"Expected identifier: {
+                             self.current_token[1]} is not allowed")
+        self.add_variable(self.scope_path, self.current_token[1], None)
+        self.location[-1]["latex"] += "\\left[\\operatorname{for}" + self.current_token[1] + "="  # nopep8
+        self.next_token()
+        if self.current_token[1] != "in":
+            self.raise_error("Expected 'in'")
+        self.next_token()
+        if not self.parse_list():
+            self.raise_error("Expected list")
+        if self.current_token[1] != "{":
+            self.raise_error("Expected {")
+        self.next_token()
+        while self.current_token[1] != "}":
+
+            while self.current_token[1] == "\n":
+                self.next_token()
+
+            if not self.parse_statement(mkline=False):
+                self.raise_error("Expected statement")
+            while self.current_token[1] == "\n":
+                self.next_token()
+        if self.current_token[1] != "}":
+            self.raise_error("expected }")
+        self.location[-1]["latex"] += "\\right]"
         self.next_token()
         return True
 
@@ -728,6 +758,8 @@ class GraphLangInterpreter:
         self.next_token()
         while self.current_token[1] != "}":
             self.parse_statement(mkline=False)
+            while self.current_token[0] in ["line", "comment"]:
+                self.next_token()
         if self.current_token[1] != "}":
             self.raise_error("Expected }")
         self.next_token()
@@ -1185,6 +1217,7 @@ class GraphLangInterpreter:
 
 
 if __name__ == "__main__":
+    # clear console
     os.system("cls")
     try:
         print(colors.BLUE + "Looking for - " + sys.argv[1] + colors.END)
@@ -1200,6 +1233,7 @@ Hint: try ''' + colors.END + colors.YELLOW + "py interpreter.py foo.graphlang" +
         with open(sys.argv[1], "rt", encoding="utf-8") as f:
             text_code = f.read()
             os.system("cls")
+            # compiling animation
             for i in range(10):
                 os.system("cls")
                 print(colors.GREEN + "Compiling" + ("............."*i) + colors.END)  # nopep8
